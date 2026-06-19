@@ -12,7 +12,7 @@ esac
 
 LATEST=$(curl -sI "https://github.com/cpressland/brewery/releases/latest" \
   | grep -i '^location:' \
-  | sed 's|.*/tag/||;s/\r//')
+  | /usr/bin/sed 's|.*/tag/||;s/\r//')
 
 echo "installing brewery-agent $LATEST ($GOARCH)"
 
@@ -26,7 +26,7 @@ curl -fsSL \
   "https://raw.githubusercontent.com/cpressland/brewery/refs/heads/main/com.brewery.agent.plist" \
   -o /tmp/com.brewery.agent.plist
 
-sed -i '' \
+/usr/bin/sed -i '' \
   -e "s|http://your-brewery-server:6502|$BREWERY_SERVER_URL|" \
   -e "s|<string></string>|<string>$BREWERY_API_KEY</string>|" \
   /tmp/com.brewery.agent.plist
