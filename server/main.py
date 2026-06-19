@@ -7,7 +7,6 @@ from .database import engine
 from .models import Base
 from .routes.api import router as api_router
 from .routes.web import router as web_router
-from .settings import settings
 
 
 @asynccontextmanager
@@ -22,4 +21,4 @@ app.include_router(web_router)
 
 
 def run() -> None:
-    uvicorn.run("server.main:app", host=settings.host, port=settings.port, reload=False)
+    uvicorn.run("server.main:app", host="0.0.0.0", port=6502, reload=False)

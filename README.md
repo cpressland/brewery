@@ -15,7 +15,7 @@ The server image is published to the GitHub Container Registry.
 podman run -d \
   -e BREWERY_DATABASE_URL=postgresql://brewery:brewery@db/brewery \
   -e BREWERY_API_KEY=your-secret-key \
-  -p 8000:8000 \
+  -p 6502:6502 \
   ghcr.io/cpressland/brewery:latest
 ```
 
@@ -33,7 +33,7 @@ brewery-server
 | `BREWERY_DATABASE_URL` | `postgresql://brewery:brewery@localhost/brewery` | PostgreSQL connection string |
 | `BREWERY_API_KEY` | *(unset)* | Shared secret required in agent requests. Leave unset to disable auth |
 | `BREWERY_HOST` | `0.0.0.0` | Bind address |
-| `BREWERY_PORT` | `8000` | Bind port |
+| `BREWERY_PORT` | `6502` | Bind port |
 
 ## Agent
 
@@ -63,7 +63,7 @@ Logs are written to `/var/log/brewery-agent.log`.
 
 | Variable | Required | Description |
 |---|---|---|
-| `BREWERY_SERVER_URL` | Yes | Base URL of the server, e.g. `http://brewery.internal:8000` |
+| `BREWERY_SERVER_URL` | Yes | Base URL of the server, e.g. `http://brewery.internal:6502` |
 | `BREWERY_API_KEY` | No | Must match the server's `BREWERY_API_KEY` if set |
 
 ### Versioning

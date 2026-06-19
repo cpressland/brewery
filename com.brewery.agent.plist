@@ -20,7 +20,7 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>BREWERY_SERVER_URL</key>
-    <string>http://your-brewery-server:8000</string>
+    <string>http://your-brewery-server:6502</string>
     <!-- Leave BREWERY_API_KEY empty if the server has no API key set -->
     <key>BREWERY_API_KEY</key>
     <string></string>
