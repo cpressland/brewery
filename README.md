@@ -37,6 +37,16 @@ brewery-server
 
 ## Agent
 
+### Quick install
+
+```sh
+BREWERY_SERVER_URL=http://brewery.internal:6502 \
+BREWERY_API_KEY=your-secret-key \
+curl -fsSL https://raw.githubusercontent.com/cpressland/brewery/main/install.sh | sh
+```
+
+`BREWERY_API_KEY` is optional — omit it if the server has no API key set.
+
 ### Build
 
 ```sh
