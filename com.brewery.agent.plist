@@ -26,7 +26,7 @@
     <string></string>
     <!-- brew must be on PATH; include both ARM and Intel prefixes -->
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/sbin:/usr/bin:/bin</string>
   </dict>
 
   <!-- Run every 15 minutes -->
