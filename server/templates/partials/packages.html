@@ -1,0 +1,13 @@
+{% if packages %}
+  {% for pkg in packages %}
+  <tr>
+    <td>{{ pkg.name }}</td>
+    <td><span class="badge badge-{{ pkg.type }}">{{ pkg.type }}</span></td>
+    <td><code>{{ pkg.version or "—" }}</code></td>
+  </tr>
+  {% endfor %}
+{% else %}
+  <tr>
+    <td colspan="3" class="empty">No packages found.</td>
+  </tr>
+{% endif %}

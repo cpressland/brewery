@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Brewery — {{ name }}{% endblock %}
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+  <div>
+    <h2>
+      {{ name }}
+      <span class="badge badge-{{ pkg_type }}" style="vertical-align: middle; margin-left: 0.4rem;">{{ pkg_type }}</span>
+    </h2>
+    <p class="sub">installed on {{ total_hosts }} host{% if total_hosts != 1 %}s{% endif %}, {{ versions | length }} version{% if versions | length != 1 %}s{% endif %}</p>
+  </div>
+  <a href="/packages" class="back-link">← All packages</a>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Version</th>
+        <th>Hosts</th>
+        <th style="width: 140px;"></th>
+        <th>Installed on</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for version, hosts in versions %}
+      {% set pct = (hosts | length / total_hosts * 100) | round | int %}
+      <tr>
+        <td><code>{{ version }}</code></td>
+        <td>
+          <code>{{ hosts | length }}</code>
+          <span style="color: var(--overlay0); font-size: 0.75rem; margin-left: 0.25rem;">
+            ({{ pct }}%)
+          </span>
+        </td>
+        <td>
+          <div class="version-bar-wrap">
+            <div class="version-bar" style="width: {{ pct }}%;"></div>
+          </div>
+        </td>
+        <td>
+          <div class="host-chips">
+            {% for h in hosts %}
+            <span class="host-chip"><a href="/hosts/{{ h.serial_number }}">{{ h.hostname }}</a></span>
+            {% endfor %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

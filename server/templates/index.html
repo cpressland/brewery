@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Brewery — Hosts{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Hosts</h2>
+  <p class="sub">{{ hosts | length }} host{% if hosts | length != 1 %}s{% endif %} reporting</p>
+</div>
+
+{% if hosts %}
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Hostname</th>
+        <th>Serial</th>
+        <th>Formulas</th>
+        <th>Casks</th>
+        <th>Last Seen</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in hosts %}
+      <tr>
+        <td><a href="/hosts/{{ item.host.serial_number }}">{{ item.host.hostname }}</a></td>
+        <td><code>{{ item.host.serial_number }}</code></td>
+        <td><span class="badge badge-formula">{{ item.formulas }}</span></td>
+        <td><span class="badge badge-cask">{{ item.casks }}</span></td>
+        <td>
+          <code>
+            {% if item.host.last_seen %}
+              {{ item.host.last_seen.strftime('%Y-%m-%d %H:%M') }} UTC
+            {% else %}
+              —
+            {% endif %}
+          </code>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <p class="empty">No hosts have reported yet. Configure the brewery agent on your macOS systems.</p>
+</div>
+{% endif %}
+{% endblock %}

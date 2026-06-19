@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Brewery — {{ host.hostname }}{% endblock %}
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+  <div>
+    <h2>{{ host.hostname }}</h2>
+    <p class="sub">
+      <code style="font-size: 0.8rem;">{{ host.serial_number }}</code>
+      &nbsp;·&nbsp;
+      Last seen:
+      {% if host.last_seen %}
+        {{ host.last_seen.strftime('%Y-%m-%d %H:%M') }} UTC
+      {% else %}
+        never
+      {% endif %}
+    </p>
+  </div>
+  <a href="/" class="back-link">← All hosts</a>
+</div>
+
+<div class="stat-row">
+  <div class="stat">
+    <div class="label">Formulas</div>
+    <div class="value">{{ formula_count }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Casks</div>
+    <div class="value">{{ cask_count }}</div>
+  </div>
+</div>
+
+<!-- hidden input so the search box always sends the current filter -->
+<input type="hidden" name="kind" id="kind-val" value="{{ kind }}">
+
+<div class="filter-tabs">
+  {% for label, value in [("All", ""), ("Formulas", "formula"), ("Casks", "cask")] %}
+  <button
+    class="filter-tab{% if kind == value %} active{% endif %}"
+    hx-get="/hosts/{{ host.serial_number }}/packages{% if value %}?kind={{ value }}{% endif %}"
+    hx-include="[name='q']"
+    hx-target="#packages-body"
+    onclick="document.getElementById('kind-val').value='{{ value }}';document.querySelectorAll('.filter-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active')">
+    {{ label }}
+  </button>
+  {% endfor %}
+</div>
+
+<div class="search-wrap">
+  <input
+    type="search"
+    name="q"
+    value="{{ q }}"
+    placeholder="Search packages..."
+    hx-get="/hosts/{{ host.serial_number }}/packages"
+    hx-trigger="keyup changed delay:250ms, search"
+    hx-target="#packages-body"
+    hx-include="[name='kind']"
+  >
+  <span class="htmx-indicator" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--overlay0); font-size: 0.75rem;">
+    searching…
+  </span>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Version</th>
+      </tr>
+    </thead>
+    <tbody id="packages-body">
+      {% include "partials/packages.html" %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
