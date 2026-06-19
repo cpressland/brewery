@@ -47,9 +47,14 @@ func main() {
 		log.Fatalf("serial number: %v", err)
 	}
 
+	user, err := consoleUser()
+	if err != nil {
+		log.Fatalf("console user: %v", err)
+	}
+
 	hostname, _ := os.Hostname()
-	formulas := listFormulas()
-	casks := listCasks()
+	formulas := listFormulas(user)
+	casks := listCasks(user)
 
 	req := syncRequest{
 		SerialNumber: serial,
@@ -84,8 +89,24 @@ func getSerial() (string, error) {
 	return data.SPHardwareDataType[0].Serial, nil
 }
 
-func listFormulas() []pkg {
-	out, err := exec.Command("brew", "list", "--formula", "--versions").Output()
+func consoleUser() (string, error) {
+	out, err := exec.Command("stat", "-f", "%Su", "/dev/console").Output()
+	if err != nil {
+		return "", err
+	}
+	user := strings.TrimSpace(string(out))
+	if user == "" || user == "root" {
+		return "", fmt.Errorf("no user logged in at console")
+	}
+	return user, nil
+}
+
+func brewOutput(user string, args ...string) ([]byte, error) {
+	return exec.Command("su", "-l", user, "-c", "brew "+strings.Join(args, " ")).Output()
+}
+
+func listFormulas(user string) []pkg {
+	out, err := brewOutput(user, "list", "--formula", "--versions")
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
 			log.Printf("brew list --formula: %s", strings.TrimSpace(string(ee.Stderr)))
@@ -107,15 +128,15 @@ func listFormulas() []pkg {
 	return pkgs
 }
 
-func listCasks() []pkg {
-	out, err := exec.Command("brew", "list", "--cask").Output()
+func listCasks(user string) []pkg {
+	out, err := brewOutput(user, "list", "--cask")
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
 			log.Printf("brew list --cask: %s", strings.TrimSpace(string(ee.Stderr)))
 		}
 	}
 
-	prefixOut, err := exec.Command("brew", "--prefix").Output()
+	prefixOut, err := brewOutput(user, "--prefix")
 	if err != nil {
 		log.Printf("brew --prefix: %v", err)
 		return nil
