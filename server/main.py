@@ -6,8 +6,6 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from .database import engine
-from .models import Base
 from .routes.api import router as api_router
 from .routes.web import router as web_router
 
@@ -16,7 +14,6 @@ log = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
     yield
 
 
