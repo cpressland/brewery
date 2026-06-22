@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Brewery — Login{% endblock %}
+{% block content %}
+<div style="max-width: 360px; margin: 4rem auto;">
+  <div class="page-header" style="text-align: center; margin-bottom: 2rem;">
+    <h2>Sign in to Brewery</h2>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <form method="post" action="/login" style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <div>
+          <label style="display: block; font-size: 0.75rem; color: var(--subtext0); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.06em;">Password</label>
+          <input type="password" name="password" autofocus required
+                 style="width: 100%; padding: 0.5rem 0.75rem; background: var(--base); border: 1px solid var(--surface1); border-radius: 6px; color: var(--text); font-family: inherit; font-size: 0.875rem; outline: none;"
+                 onfocus="this.style.borderColor='var(--pink)'"
+                 onblur="this.style.borderColor='var(--surface1)'">
+        </div>
+        {% if error %}
+        <p style="color: var(--red); font-size: 0.8125rem; margin: 0;">{{ error }}</p>
+        {% endif %}
+        <button type="submit" class="btn btn-pink" style="width: 100%; justify-content: center;">Sign in</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

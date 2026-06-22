@@ -1,0 +1,32 @@
+{% if hosts %}
+  {% for item in hosts %}
+  <tr>
+    <td><a href="/hosts/{{ item.host.serial_number }}">{{ item.host.hostname }}</a></td>
+    <td><code>{{ item.host.serial_number }}</code></td>
+    <td><span class="badge badge-formula">{{ item.formulas }}</span></td>
+    <td><span class="badge badge-cask">{{ item.casks }}</span></td>
+    <td><code>{{ item.host.agent_version or '—' }}</code></td>
+    <td>
+      <code>
+        {% if item.host.last_seen %}
+          {{ item.host.last_seen.strftime('%Y-%m-%d %H:%M') }} UTC
+        {% else %}
+          —
+        {% endif %}
+      </code>
+    </td>
+    <td>
+      <button class="btn-danger"
+              hx-delete="/hosts/{{ item.host.serial_number }}"
+              hx-target="closest tr"
+              hx-swap="outerHTML"
+              hx-confirm="Remove {{ item.host.hostname }}? This deletes all package history for this host."
+              title="Remove host">×</button>
+    </td>
+  </tr>
+  {% endfor %}
+{% else %}
+  <tr>
+    <td colspan="7" class="empty">No hosts have reported yet. Configure the brewery agent on your macOS systems.</td>
+  </tr>
+{% endif %}

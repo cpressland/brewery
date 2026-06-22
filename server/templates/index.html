@@ -1,49 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Brewery — Hosts{% endblock %}
+
+{% macro sort_link(label, field) %}
+  {% set next_dir = 'desc' if sort == field and dir == 'asc' else 'asc' %}
+  <a href="/?sort={{ field }}&dir={{ next_dir }}" class="sort-link">
+    {{ label }}
+    {% if sort == field %}<span class="sort-arrow">{{ '▲' if dir == 'asc' else '▼' }}</span>{% endif %}
+  </a>
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
   <h2>Hosts</h2>
-  <p class="sub">{{ hosts | length }} host{% if hosts | length != 1 %}s{% endif %} reporting</p>
+  <p class="sub" id="host-count">{{ hosts | length }} host{% if hosts | length != 1 %}s{% endif %} reporting</p>
 </div>
 
-{% if hosts %}
 <div class="card">
   <table>
     <thead>
       <tr>
-        <th>Hostname</th>
+        <th>{{ sort_link('Hostname', 'hostname') }}</th>
         <th>Serial</th>
-        <th>Formulas</th>
-        <th>Casks</th>
-        <th>Agent</th>
-        <th>Last Seen</th>
+        <th>{{ sort_link('Formulas', 'formulas') }}</th>
+        <th>{{ sort_link('Casks', 'casks') }}</th>
+        <th>{{ sort_link('Agent', 'agent_version') }}</th>
+        <th>{{ sort_link('Last Seen', 'last_seen') }}</th>
+        <th style="width: 2rem;"></th>
       </tr>
     </thead>
-    <tbody>
-      {% for item in hosts %}
-      <tr>
-        <td><a href="/hosts/{{ item.host.serial_number }}">{{ item.host.hostname }}</a></td>
-        <td><code>{{ item.host.serial_number }}</code></td>
-        <td><span class="badge badge-formula">{{ item.formulas }}</span></td>
-        <td><span class="badge badge-cask">{{ item.casks }}</span></td>
-        <td><code>{{ item.host.agent_version or '—' }}</code></td>
-        <td>
-          <code>
-            {% if item.host.last_seen %}
-              {{ item.host.last_seen.strftime('%Y-%m-%d %H:%M') }} UTC
-            {% else %}
-              —
-            {% endif %}
-          </code>
-        </td>
-      </tr>
-      {% endfor %}
+    <tbody id="hosts-tbody"
+      hx-get="/hosts-partial?sort={{ sort }}&dir={{ dir }}"
+      hx-trigger="every 30s"
+      hx-swap="innerHTML">
+      {% include "partials/host_rows.html" %}
     </tbody>
   </table>
 </div>
-{% else %}
-<div class="card">
-  <p class="empty">No hosts have reported yet. Configure the brewery agent on your macOS systems.</p>
-</div>
-{% endif %}
 {% endblock %}

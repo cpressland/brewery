@@ -1,8 +1,9 @@
+import os
 import pathlib
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -12,31 +13,76 @@ from ..models import Command, Host, Package
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(pathlib.Path(__file__).parent.parent / "templates"))
+templates.env.globals["show_logout"] = bool(os.environ.get("BREWERY_PASSWORD"))
 
+
+# ── Auth ─────────────────────────────────────────────────────────────────────
+
+@router.get("/login", response_class=HTMLResponse)
+def login_get(request: Request) -> HTMLResponse:
+    if not os.environ.get("BREWERY_PASSWORD"):
+        return RedirectResponse(url="/", status_code=302)
+    return templates.TemplateResponse(request, "login.html", {"error": None})
+
+
+@router.post("/login", response_class=HTMLResponse)
+def login_post(request: Request, password: str = Form(...)) -> HTMLResponse:
+    expected = os.environ.get("BREWERY_PASSWORD")
+    if not expected or password == expected:
+        request.session["logged_in"] = True
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(request, "login.html", {"error": "Invalid password"})
+
+
+@router.post("/logout")
+def logout(request: Request) -> RedirectResponse:
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=303)
+
+
+# ── Index ─────────────────────────────────────────────────────────────────────
 
 @router.get("/", response_class=HTMLResponse)
-def index(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    hosts = db.query(Host).order_by(Host.hostname).all()
-    host_data = [
-        {
-            "host": host,
-            "formulas": db.query(Package)
-            .filter(Package.host_id == host.id, Package.type == "formula")
-            .count(),
-            "casks": db.query(Package)
-            .filter(Package.host_id == host.id, Package.type == "cask")
-            .count(),
-        }
-        for host in hosts
-    ]
-    return templates.TemplateResponse(request, "index.html", {"hosts": host_data})
+def index(
+    request: Request,
+    sort: str = "hostname",
+    dir: str = "asc",
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    host_data = _host_data(sort, dir, db)
+    return templates.TemplateResponse(
+        request, "index.html", {"hosts": host_data, "sort": sort, "dir": dir}
+    )
 
+
+@router.get("/hosts-partial", response_class=HTMLResponse)
+def hosts_partial(
+    request: Request,
+    sort: str = "hostname",
+    dir: str = "asc",
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    host_data = _host_data(sort, dir, db)
+    return templates.TemplateResponse(
+        request, "partials/host_rows.html", {"hosts": host_data}
+    )
+
+
+# ── Packages ──────────────────────────────────────────────────────────────────
 
 @router.get("/packages", response_class=HTMLResponse)
-def packages_list(request: Request, q: str = "", db: Session = Depends(get_db)) -> HTMLResponse:
-    rows = _package_rows(q, db)
+def packages_list(
+    request: Request,
+    q: str = "",
+    sort: str = "host_count",
+    dir: str = "desc",
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    rows = _package_rows(q, sort, dir, db)
     all_hosts = db.query(Host).order_by(Host.hostname).all()
-    return templates.TemplateResponse(request, "packages.html", {"packages": rows, "q": q, "all_hosts": all_hosts})
+    return templates.TemplateResponse(
+        request, "packages.html", {"packages": rows, "q": q, "all_hosts": all_hosts, "sort": sort, "dir": dir}
+    )
 
 
 @router.post("/packages/install", response_class=HTMLResponse)
@@ -64,8 +110,14 @@ def packages_install(
 
 
 @router.get("/packages/search", response_class=HTMLResponse)
-def packages_search(request: Request, q: str = "", db: Session = Depends(get_db)) -> HTMLResponse:
-    rows = _package_rows(q, db)
+def packages_search(
+    request: Request,
+    q: str = "",
+    sort: str = "host_count",
+    dir: str = "desc",
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    rows = _package_rows(q, sort, dir, db)
     return templates.TemplateResponse(request, "partials/package_rows.html", {"packages": rows})
 
 
@@ -147,12 +199,16 @@ def package_queue_command(
     )
 
 
+# ── Hosts ─────────────────────────────────────────────────────────────────────
+
 @router.get("/hosts/{serial_number}", response_class=HTMLResponse)
 def host_detail(
     serial_number: str,
     request: Request,
     q: str = "",
     kind: str = "",
+    sort: str = "name",
+    dir: str = "asc",
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     host = db.query(Host).filter(Host.serial_number == serial_number).first()
@@ -172,7 +228,7 @@ def host_detail(
         .limit(20)
         .all()
     )
-    packages = _filter_packages(db, host.id, q, kind)
+    packages = _filter_packages(db, host.id, q, kind, sort, dir)
 
     return templates.TemplateResponse(
         request,
@@ -185,6 +241,8 @@ def host_detail(
             "commands": commands,
             "q": q,
             "kind": kind,
+            "sort": sort,
+            "dir": dir,
         },
     )
 
@@ -214,29 +272,100 @@ def host_queue_command(
     return templates.TemplateResponse(request, "partials/command_row.html", {"cmd": cmd})
 
 
+@router.get("/hosts/{serial_number}/commands", response_class=HTMLResponse)
+def host_commands_partial(
+    serial_number: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    host = db.query(Host).filter(Host.serial_number == serial_number).first()
+    if not host:
+        raise HTTPException(status_code=404, detail="Host not found")
+    commands = (
+        db.query(Command)
+        .filter(Command.host_id == host.id)
+        .order_by(Command.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    return templates.TemplateResponse(request, "partials/command_rows.html", {"commands": commands})
+
+
 @router.get("/hosts/{serial_number}/packages", response_class=HTMLResponse)
 def host_packages_partial(
     serial_number: str,
     request: Request,
     q: str = "",
     kind: str = "",
+    sort: str = "name",
+    dir: str = "asc",
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     host = db.query(Host).filter(Host.serial_number == serial_number).first()
     if not host:
         raise HTTPException(status_code=404, detail="Host not found")
 
-    packages = _filter_packages(db, host.id, q, kind)
+    packages = _filter_packages(db, host.id, q, kind, sort, dir)
     return templates.TemplateResponse(request, "partials/packages.html", {"packages": packages})
 
 
-def _filter_packages(db: Session, host_id, q: str, kind: str) -> list:
+@router.delete("/hosts/{serial_number}", response_class=HTMLResponse)
+def host_delete(
+    serial_number: str,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    host = db.query(Host).filter(Host.serial_number == serial_number).first()
+    if not host:
+        raise HTTPException(status_code=404, detail="Host not found")
+    db.delete(host)
+    db.commit()
+    return HTMLResponse("")
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _host_data(sort: str, dir: str, db: Session) -> list[dict]:
+    hosts = db.query(Host).all()
+    data = [
+        {
+            "host": host,
+            "formulas": db.query(Package)
+            .filter(Package.host_id == host.id, Package.type == "formula")
+            .count(),
+            "casks": db.query(Package)
+            .filter(Package.host_id == host.id, Package.type == "cask")
+            .count(),
+        }
+        for host in hosts
+    ]
+
+    from datetime import datetime, timezone
+
+    def sort_key(item):
+        h = item["host"]
+        if sort == "formulas":
+            return item["formulas"]
+        if sort == "casks":
+            return item["casks"]
+        if sort == "agent_version":
+            return (h.agent_version or "").lower()
+        if sort == "last_seen":
+            return h.last_seen or datetime.min.replace(tzinfo=timezone.utc)
+        return h.hostname.lower()
+
+    data.sort(key=sort_key, reverse=(dir == "desc"))
+    return data
+
+
+def _filter_packages(db: Session, host_id, q: str, kind: str, sort: str = "name", dir: str = "asc") -> list:
     query = db.query(Package).filter(Package.host_id == host_id)
     if kind in ("formula", "cask"):
         query = query.filter(Package.type == kind)
     if q:
         query = query.filter(Package.name.ilike(f"%{q}%"))
-    return query.order_by(Package.type, Package.name).all()
+    col = {"name": Package.name, "type": Package.type, "version": Package.version}.get(sort, Package.name)
+    query = query.order_by(col.desc() if dir == "desc" else col.asc())
+    return query.all()
 
 
 def _latest_version(version_strs: list[str]) -> str | None:
@@ -251,7 +380,13 @@ def _latest_version(version_strs: list[str]) -> str | None:
     return max(known, key=sort_key)
 
 
-def _package_rows(q: str, db: Session) -> list:
+def _package_rows(q: str, sort: str, dir: str, db: Session) -> list:
+    col = {
+        "name": Package.name,
+        "type": Package.type,
+        "host_count": func.count(Package.host_id),
+    }.get(sort, func.count(Package.host_id))
+
     query = db.query(
         Package.name,
         Package.type,
@@ -259,4 +394,5 @@ def _package_rows(q: str, db: Session) -> list:
     ).group_by(Package.name, Package.type)
     if q:
         query = query.filter(Package.name.ilike(f"%{q}%"))
-    return query.order_by(func.count(Package.host_id).desc(), Package.name).all()
+    query = query.order_by(col.desc() if dir == "desc" else col.asc())
+    return query.all()

@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Brewery — Packages{% endblock %}
+
+{% macro sort_link(label, field) %}
+  {% set next_dir = 'desc' if sort == field and dir == 'asc' else 'asc' %}
+  <a href="/packages?sort={{ field }}&dir={{ next_dir }}&q={{ q }}" class="sort-link">
+    {{ label }}
+    {% if sort == field %}<span class="sort-arrow">{{ '▲' if dir == 'asc' else '▼' }}</span>{% endif %}
+  </a>
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
   <h2>Packages</h2>
@@ -53,7 +62,7 @@
     value="{{ q }}"
     placeholder="Search packages..."
     autofocus
-    hx-get="/packages/search"
+    hx-get="/packages/search?sort={{ sort }}&dir={{ dir }}"
     hx-trigger="keyup changed delay:250ms, search"
     hx-target="#package-body"
     hx-include="[name='q']"
@@ -64,12 +73,15 @@
   <table>
     <thead>
       <tr>
-        <th>Name</th>
-        <th>Type</th>
-        <th>Hosts</th>
+        <th>{{ sort_link('Name', 'name') }}</th>
+        <th>{{ sort_link('Type', 'type') }}</th>
+        <th>{{ sort_link('Hosts', 'host_count') }}</th>
       </tr>
     </thead>
-    <tbody id="package-body">
+    <tbody id="package-body"
+      hx-get="/packages/search?sort={{ sort }}&dir={{ dir }}&q={{ q }}"
+      hx-trigger="every 30s"
+      hx-swap="innerHTML">
       {% include "partials/package_rows.html" %}
     </tbody>
   </table>

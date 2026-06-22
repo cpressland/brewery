@@ -1,10 +1,13 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from .routes.api import router as api_router
 from .routes.web import router as web_router
@@ -20,6 +23,22 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Brewery", lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
 app.include_router(api_router)
 app.include_router(web_router)
+
+
+class _AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        password = os.environ.get("BREWERY_PASSWORD")
+        if password:
+            path = request.url.path
+            if not path.startswith("/api") and path != "/login":
+                if not request.session.get("logged_in"):
+                    return RedirectResponse(url="/login", status_code=302)
+        return await call_next(request)
+
+
+# AuthMiddleware added first (inner), SessionMiddleware added second (outer → runs first on request)
+app.add_middleware(_AuthMiddleware)
+app.add_middleware(SessionMiddleware, secret_key=os.environ.get("SECRET_KEY", "brewery-dev-secret"))
 
 
 @app.exception_handler(RequestValidationError)

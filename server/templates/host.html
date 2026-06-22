@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Brewery — {{ host.hostname }}{% endblock %}
+
+{% macro sort_link(label, field) %}
+  {% set next_dir = 'desc' if sort == field and dir == 'asc' else 'asc' %}
+  <a href="/hosts/{{ host.serial_number }}?sort={{ field }}&dir={{ next_dir }}&kind={{ kind }}" class="sort-link">
+    {{ label }}
+    {% if sort == field %}<span class="sort-arrow">{{ '▲' if dir == 'asc' else '▼' }}</span>{% endif %}
+  </a>
+{% endmacro %}
+
 {% block content %}
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
   <div>
@@ -58,23 +67,26 @@
         <th>Queued</th>
       </tr>
     </thead>
-    <tbody id="commands-body">
-      {% for cmd in commands %}
-      {% include "partials/command_row.html" %}
-      {% endfor %}
+    <tbody id="commands-body"
+      hx-get="/hosts/{{ host.serial_number }}/commands"
+      hx-trigger="every 15s"
+      hx-swap="innerHTML">
+      {% include "partials/command_rows.html" %}
     </tbody>
   </table>
 </div>
 
-<!-- hidden input so the search box always sends the current filter -->
+<!-- hidden inputs so HTMX requests preserve current filter/sort state -->
 <input type="hidden" name="kind" id="kind-val" value="{{ kind }}">
+<input type="hidden" name="sort" id="pkg-sort" value="{{ sort }}">
+<input type="hidden" name="dir" id="pkg-dir" value="{{ dir }}">
 
 <div class="filter-tabs">
   {% for label, value in [("All", ""), ("Formulas", "formula"), ("Casks", "cask")] %}
   <button
     class="filter-tab{% if kind == value %} active{% endif %}"
     hx-get="/hosts/{{ host.serial_number }}/packages{% if value %}?kind={{ value }}{% endif %}"
-    hx-include="[name='q']"
+    hx-include="[name='q'],[name='sort'],[name='dir']"
     hx-target="#packages-body"
     onclick="document.getElementById('kind-val').value='{{ value }}';document.querySelectorAll('.filter-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active')">
     {{ label }}
@@ -91,7 +103,7 @@
     hx-get="/hosts/{{ host.serial_number }}/packages"
     hx-trigger="keyup changed delay:250ms, search"
     hx-target="#packages-body"
-    hx-include="[name='kind']"
+    hx-include="[name='kind'],[name='sort'],[name='dir']"
   >
   <span class="htmx-indicator" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--overlay0); font-size: 0.75rem;">
     searching…
@@ -102,12 +114,16 @@
   <table>
     <thead>
       <tr>
-        <th>Name</th>
-        <th>Type</th>
-        <th>Version</th>
+        <th>{{ sort_link('Name', 'name') }}</th>
+        <th>{{ sort_link('Type', 'type') }}</th>
+        <th>{{ sort_link('Version', 'version') }}</th>
       </tr>
     </thead>
-    <tbody id="packages-body">
+    <tbody id="packages-body"
+      hx-get="/hosts/{{ host.serial_number }}/packages?sort={{ sort }}&dir={{ dir }}&kind={{ kind }}"
+      hx-trigger="every 60s"
+      hx-include="[name='q']"
+      hx-swap="innerHTML">
       {% include "partials/packages.html" %}
     </tbody>
   </table>

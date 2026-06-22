@@ -1,0 +1,9 @@
+{% if commands %}
+  {% for cmd in commands %}
+  {% include "partials/command_row.html" %}
+  {% endfor %}
+{% else %}
+  <tr>
+    <td colspan="5" class="empty">No commands queued.</td>
+  </tr>
+{% endif %}

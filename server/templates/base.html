@@ -57,8 +57,19 @@
     }
     header .wordmark:hover { text-decoration: none; color: var(--mauve); }
 
-    header nav { display: flex; gap: 1rem; }
+    header nav { display: flex; gap: 1rem; align-items: center; }
     header nav a { color: var(--subtext1); font-size: 0.8125rem; }
+
+    .sort-link {
+      color: inherit;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      cursor: pointer;
+    }
+    .sort-link:hover { color: var(--pink); text-decoration: none; }
+    .sort-arrow { font-size: 0.625rem; opacity: 0.8; }
 
     main { padding: 2rem; max-width: 1100px; margin: 0 auto; }
 
@@ -324,6 +335,11 @@
     <nav>
       <a href="/">Hosts</a>
       <a href="/packages">Packages</a>
+      {% if show_logout %}
+      <form method="post" action="/logout" style="display: inline; margin-left: 0.5rem;">
+        <button type="submit" class="btn" style="font-size: 0.75rem; padding: 0.25rem 0.625rem;">Logout</button>
+      </form>
+      {% endif %}
     </nav>
   </header>
   <main>
