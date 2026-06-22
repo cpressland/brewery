@@ -9,6 +9,7 @@ class PackageIn(BaseModel):
 class SyncRequest(BaseModel):
     serial_number: str
     hostname: str
+    agent_version: str | None = None
     formulas: list[PackageIn] = []
     casks: list[PackageIn] = []
 

@@ -16,6 +16,7 @@ class Host(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     serial_number: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     hostname: Mapped[str] = mapped_column(String, nullable=False)
+    agent_version: Mapped[str | None] = mapped_column(String, nullable=True)
     last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

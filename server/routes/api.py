@@ -32,6 +32,7 @@ def sync(
         db.flush()
 
     host.hostname = request.hostname
+    host.agent_version = request.agent_version
     host.last_seen = datetime.now(timezone.utc)
 
     db.query(Package).filter(Package.host_id == host.id).delete()

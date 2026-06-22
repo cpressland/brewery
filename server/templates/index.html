@@ -15,6 +15,7 @@
         <th>Serial</th>
         <th>Formulas</th>
         <th>Casks</th>
+        <th>Agent</th>
         <th>Last Seen</th>
       </tr>
     </thead>
@@ -25,6 +26,7 @@
         <td><code>{{ item.host.serial_number }}</code></td>
         <td><span class="badge badge-formula">{{ item.formulas }}</span></td>
         <td><span class="badge badge-cask">{{ item.casks }}</span></td>
+        <td><code>{{ item.host.agent_version or '—' }}</code></td>
         <td>
           <code>
             {% if item.host.last_seen %}

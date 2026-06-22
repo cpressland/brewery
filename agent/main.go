@@ -5,12 +5,16 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -24,6 +28,7 @@ type pkg struct {
 type syncRequest struct {
 	SerialNumber string `json:"serial_number"`
 	Hostname     string `json:"hostname"`
+	AgentVersion string `json:"agent_version"`
 	Formulas     []pkg  `json:"formulas"`
 	Casks        []pkg  `json:"casks"`
 }
@@ -35,6 +40,8 @@ func main() {
 		fmt.Println(version)
 		return
 	}
+
+	checkAndUpdate()
 
 	serverURL := os.Getenv("BREWERY_SERVER_URL")
 	if serverURL == "" {
@@ -59,6 +66,7 @@ func main() {
 	req := syncRequest{
 		SerialNumber: serial,
 		Hostname:     hostname,
+		AgentVersion: version,
 		Formulas:     formulas,
 		Casks:        casks,
 	}
@@ -68,6 +76,110 @@ func main() {
 	}
 
 	log.Printf("synced %d formulas, %d casks for %s (%s)", len(formulas), len(casks), hostname, serial)
+}
+
+func checkAndUpdate() {
+	if version == "dev" {
+		return
+	}
+	latest, err := latestRelease()
+	if err != nil {
+		log.Printf("auto-update: check failed: %v", err)
+		return
+	}
+	if !isNewer(latest, version) {
+		return
+	}
+	log.Printf("auto-update: updating %s → %s", version, latest)
+	if err := selfUpdate(latest); err != nil {
+		log.Printf("auto-update: failed: %v", err)
+		return
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		log.Printf("auto-update: restart failed: %v", err)
+		return
+	}
+	log.Printf("auto-update: restarting as %s", latest)
+	syscall.Exec(exe, os.Args, os.Environ())
+}
+
+func latestRelease() (string, error) {
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Head("https://github.com/cpressland/brewery/releases/latest")
+	if err != nil {
+		return "", err
+	}
+	resp.Body.Close()
+	loc := resp.Header.Get("Location")
+	if loc == "" {
+		return "", fmt.Errorf("no Location header in redirect")
+	}
+	return loc[strings.LastIndex(loc, "/")+1:], nil
+}
+
+func isNewer(a, b string) bool {
+	parse := func(v string) [3]int {
+		v = strings.TrimPrefix(v, "v")
+		parts := strings.SplitN(v, ".", 3)
+		var n [3]int
+		for i, p := range parts {
+			if i < 3 {
+				n[i], _ = strconv.Atoi(p)
+			}
+		}
+		return n
+	}
+	av, bv := parse(a), parse(b)
+	for i := range av {
+		if av[i] != bv[i] {
+			return av[i] > bv[i]
+		}
+	}
+	return false
+}
+
+func selfUpdate(tag string) error {
+	url := fmt.Sprintf(
+		"https://github.com/cpressland/brewery/releases/download/%s/brewery-agent-darwin-%s",
+		tag, runtime.GOARCH,
+	)
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download returned HTTP %d", resp.StatusCode)
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		return err
+	}
+
+	tmp := exe + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		f.Close()
+		os.Remove(tmp)
+		return err
+	}
+	f.Close()
+
+	return os.Rename(tmp, exe)
 }
 
 func getSerial() (string, error) {
