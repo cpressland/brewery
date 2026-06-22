@@ -193,6 +193,129 @@
     }
     .host-chip a { color: var(--subtext1); }
     .host-chip a:hover { color: var(--pink); text-decoration: none; }
+
+    .btn {
+      background: var(--surface0);
+      border: 1px solid var(--surface1);
+      border-radius: 6px;
+      color: var(--subtext1);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.875rem;
+      padding: 0.4rem 0.875rem;
+      transition: background 0.1s, color 0.1s, border-color 0.1s;
+    }
+    .btn:hover { border-color: var(--overlay0); color: var(--text); }
+    .btn-pink {
+      background: rgba(245, 194, 231, 0.12);
+      border-color: var(--pink);
+      color: var(--pink);
+    }
+    .btn-pink:hover { background: rgba(245, 194, 231, 0.2); }
+    .btn-danger {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: var(--overlay0);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.75rem;
+      line-height: 1;
+      padding: 0.1rem 0.3rem;
+    }
+    .btn-danger:hover { border-color: var(--red); color: var(--red); }
+
+    select, input[type="text"] {
+      appearance: none;
+      background: var(--mantle);
+      border: 1px solid var(--surface1);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.875rem;
+      padding: 0.4rem 0.75rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    select {
+      padding-right: 2rem;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,6 8,10 12,6' fill='none' stroke='%236c7086' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.5rem center;
+      background-size: 0.75rem;
+    }
+    select[multiple] { background-image: none; padding-right: 0.75rem; }
+    select:focus, input[type="text"]:focus { border-color: var(--pink); }
+    select option { background: var(--mantle); }
+
+    .queued-badge {
+      display: inline-block;
+      background: rgba(166, 227, 161, 0.15);
+      color: var(--green);
+      border-radius: 4px;
+      padding: 0.2rem 0.5rem;
+      font-size: 0.75rem;
+    }
+
+    .section-header {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--pink);
+      padding: 0.625rem 1rem;
+      background: var(--crust);
+      border-bottom: 1px solid var(--surface0);
+    }
+    .card-body { padding: 1rem; }
+    .inline-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+    .host-picker { position: relative; }
+    .host-picker-trigger {
+      background: var(--mantle);
+      border: 1px solid var(--surface1);
+      border-radius: 6px;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: inherit;
+      font-size: 0.875rem;
+      min-width: 180px;
+      padding: 0.4rem 0.75rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .host-picker-trigger:hover, .host-picker-trigger:focus { border-color: var(--pink); }
+    .host-picker-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      z-index: 100;
+      background: var(--mantle);
+      border: 1px solid var(--surface1);
+      border-radius: 6px;
+      min-width: 220px;
+      max-height: 220px;
+      overflow-y: auto;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    .host-picker-dropdown.open { display: block; }
+    .host-picker-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.75rem;
+      cursor: pointer;
+      font-size: 0.8125rem;
+      color: var(--subtext1);
+      user-select: none;
+    }
+    .host-picker-option:hover { background: var(--surface0); color: var(--text); }
+    .host-picker-all { color: var(--pink); font-weight: 600; }
+    .host-picker-divider { border-top: 1px solid var(--surface0); margin: 0.2rem 0; }
   </style>
 </head>
 <body>
@@ -206,5 +329,6 @@
   <main>
     {% block content %}{% endblock %}
   </main>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

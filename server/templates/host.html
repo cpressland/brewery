@@ -29,6 +29,43 @@
   </div>
 </div>
 
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="section-header">Queue Command</div>
+  <div class="card-body">
+    <form hx-post="/hosts/{{ host.serial_number }}/commands"
+          hx-target="#commands-body" hx-swap="afterbegin"
+          hx-on::after-request="this.reset()" class="inline-form">
+      <select name="package_type">
+        <option value="formula">Formula</option>
+        <option value="cask">Cask</option>
+      </select>
+      <input type="text" name="package_name" placeholder="package name" required>
+      <select name="action">
+        <option value="install">Install</option>
+        <option value="uninstall">Uninstall</option>
+        <option value="upgrade">Upgrade</option>
+      </select>
+      <button type="submit" class="btn btn-pink">Queue</button>
+    </form>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Action</th>
+        <th>Package</th>
+        <th>Type</th>
+        <th>Status</th>
+        <th>Queued</th>
+      </tr>
+    </thead>
+    <tbody id="commands-body">
+      {% for cmd in commands %}
+      {% include "partials/command_row.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
 <!-- hidden input so the search box always sends the current filter -->
 <input type="hidden" name="kind" id="kind-val" value="{{ kind }}">
 

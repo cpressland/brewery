@@ -14,6 +14,14 @@ class SyncRequest(BaseModel):
     casks: list[PackageIn] = []
 
 
+class CommandOut(BaseModel):
+    id: str
+    action: str
+    package_name: str
+    package_type: str
+
+
 class SyncResponse(BaseModel):
     status: str
     packages_updated: int
+    commands: list[CommandOut] = []

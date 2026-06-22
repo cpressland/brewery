@@ -24,6 +24,25 @@ class Host(Base):
     packages: Mapped[list["Package"]] = relationship(
         "Package", back_populates="host", cascade="all, delete-orphan"
     )
+    commands: Mapped[list["Command"]] = relationship(
+        "Command", back_populates="host", cascade="all, delete-orphan"
+    )
+
+
+class Command(Base):
+    __tablename__ = "commands"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    host_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False)
+    action: Mapped[str] = mapped_column(String, nullable=False)  # install, uninstall, upgrade
+    package_name: Mapped[str] = mapped_column(String, nullable=False)
+    package_type: Mapped[str] = mapped_column(String, nullable=False)  # formula, cask
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")  # pending, dispatched
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    host: Mapped["Host"] = relationship("Host", back_populates="commands")
 
 
 class Package(Base):

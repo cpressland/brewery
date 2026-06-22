@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Host, Package
-from ..schemas import SyncRequest, SyncResponse
+from ..models import Command, Host, Package
+from ..schemas import CommandOut, SyncRequest, SyncResponse
 from ..settings import settings
 
 router = APIRouter(prefix="/api/v1")
@@ -48,4 +48,27 @@ def sync(
     db.add_all(new_packages)
     db.commit()
 
-    return SyncResponse(status="ok", packages_updated=len(new_packages))
+    pending = (
+        db.query(Command)
+        .filter(Command.host_id == host.id, Command.status == "pending")
+        .all()
+    )
+    now = datetime.now(timezone.utc)
+    for cmd in pending:
+        cmd.status = "dispatched"
+        cmd.dispatched_at = now
+    db.commit()
+
+    return SyncResponse(
+        status="ok",
+        packages_updated=len(new_packages),
+        commands=[
+            CommandOut(
+                id=str(cmd.id),
+                action=cmd.action,
+                package_name=cmd.package_name,
+                package_type=cmd.package_type,
+            )
+            for cmd in pending
+        ],
+    )

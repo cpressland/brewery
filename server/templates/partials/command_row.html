@@ -1,0 +1,15 @@
+<tr>
+  <td><code>{{ cmd.action }}</code></td>
+  <td><code>{{ cmd.package_name }}</code></td>
+  <td><span class="badge badge-{{ cmd.package_type }}">{{ cmd.package_type }}</span></td>
+  <td>
+    {% if cmd.status == "pending" %}
+    <span style="color: var(--peach);">pending</span>
+    {% elif cmd.status == "dispatched" %}
+    <span style="color: var(--green);">dispatched</span>
+    {% else %}
+    <span style="color: var(--overlay0);">{{ cmd.status }}</span>
+    {% endif %}
+  </td>
+  <td><code>{{ cmd.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</code></td>
+</tr>

@@ -71,11 +71,13 @@ func main() {
 		Casks:        casks,
 	}
 
-	if err := postSync(serverURL, apiKey, req); err != nil {
+	commands, err := postSync(serverURL, apiKey, req)
+	if err != nil {
 		log.Fatalf("sync: %v", err)
 	}
 
 	log.Printf("synced %d formulas, %d casks for %s (%s)", len(formulas), len(casks), hostname, serial)
+	executeCommands(user, commands)
 }
 
 func checkAndUpdate() {
@@ -279,16 +281,27 @@ func caskVersion(caskroom, name string) string {
 	return ""
 }
 
-func postSync(serverURL, apiKey string, req syncRequest) error {
+type command struct {
+	ID          string `json:"id"`
+	Action      string `json:"action"`
+	PackageName string `json:"package_name"`
+	PackageType string `json:"package_type"`
+}
+
+type syncResponse struct {
+	Commands []command `json:"commands"`
+}
+
+func postSync(serverURL, apiKey string, req syncRequest) ([]command, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	url := strings.TrimRight(serverURL, "/") + "/api/v1/sync"
 	r, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	r.Header.Set("Content-Type", "application/json")
 	if apiKey != "" {
@@ -298,12 +311,31 @@ func postSync(serverURL, apiKey string, req syncRequest) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(r)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("server returned HTTP %d", resp.StatusCode)
 	}
-	return nil
+
+	var sr syncResponse
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+	return sr.Commands, nil
+}
+
+func executeCommands(user string, commands []command) {
+	for _, cmd := range commands {
+		out, err := brewOutput(user, cmd.Action, "--"+cmd.PackageType, cmd.PackageName)
+		if err != nil {
+			log.Printf("command %s %s %s: failed: %v", cmd.Action, cmd.PackageType, cmd.PackageName, err)
+			if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+				log.Printf("command stderr: %s", strings.TrimSpace(string(ee.Stderr)))
+			}
+		} else {
+			log.Printf("command %s %s %s: ok\n%s", cmd.Action, cmd.PackageType, cmd.PackageName, strings.TrimSpace(string(out)))
+		}
+	}
 }

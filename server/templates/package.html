@@ -12,6 +12,18 @@
   <a href="/packages" class="back-link">← All packages</a>
 </div>
 
+{% if outdated_serials %}
+<div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+  <form hx-post="/packages/{{ pkg_type }}/{{ name }}/commands" hx-target="this" hx-swap="outerHTML">
+    <input type="hidden" name="action" value="upgrade">
+    {% for serial in outdated_serials %}
+    <input type="hidden" name="serials" value="{{ serial }}">
+    {% endfor %}
+    <button type="submit" class="btn btn-pink">Upgrade all outdated ({{ outdated_serials | length }})</button>
+  </form>
+</div>
+{% endif %}
+
 <div class="card">
   <table>
     <thead>
@@ -20,13 +32,20 @@
         <th>Hosts</th>
         <th style="width: 140px;"></th>
         <th>Installed on</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
       {% for version, hosts in versions %}
       {% set pct = (hosts | length / total_hosts * 100) | round | int %}
+      {% set is_latest = (version == latest_version) %}
       <tr>
-        <td><code>{{ version }}</code></td>
+        <td>
+          <code>{{ version }}</code>
+          {% if is_latest %}
+          <span class="badge" style="background: rgba(166,227,161,0.15); color: var(--green); margin-left: 0.35rem;">latest</span>
+          {% endif %}
+        </td>
         <td>
           <code>{{ hosts | length }}</code>
           <span style="color: var(--overlay0); font-size: 0.75rem; margin-left: 0.25rem;">
@@ -41,13 +60,53 @@
         <td>
           <div class="host-chips">
             {% for h in hosts %}
-            <span class="host-chip"><a href="/hosts/{{ h.serial_number }}">{{ h.hostname }}</a></span>
+            <span class="host-chip">
+              <a href="/hosts/{{ h.serial_number }}">{{ h.hostname }}</a>
+              <form hx-post="/packages/{{ pkg_type }}/{{ name }}/commands"
+                    hx-target="closest .host-chip" hx-swap="outerHTML" style="display:inline">
+                <input type="hidden" name="action" value="uninstall">
+                <input type="hidden" name="serials" value="{{ h.serial_number }}">
+                <button type="submit" class="btn-danger" title="Uninstall from {{ h.hostname }}">×</button>
+              </form>
+            </span>
             {% endfor %}
           </div>
+        </td>
+        <td style="white-space: nowrap;">
+          {% if not is_latest %}
+          <form hx-post="/packages/{{ pkg_type }}/{{ name }}/commands"
+                hx-target="this" hx-swap="outerHTML">
+            <input type="hidden" name="action" value="upgrade">
+            {% for h in hosts %}
+            <input type="hidden" name="serials" value="{{ h.serial_number }}">
+            {% endfor %}
+            <button type="submit" class="btn btn-pink">Upgrade {{ hosts | length }}</button>
+          </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+{% if hosts_without %}
+<div class="card" style="margin-top: 1.5rem;">
+  <div class="section-header">Install on additional hosts</div>
+  <div class="card-body">
+    <form hx-post="/packages/{{ pkg_type }}/{{ name }}/commands"
+          hx-target="#install-result" hx-swap="innerHTML" class="inline-form">
+      <input type="hidden" name="action" value="install">
+      <select name="serials" multiple size="{{ [hosts_without | length, 6] | min }}"
+              style="min-width: 220px;">
+        {% for h in hosts_without %}
+        <option value="{{ h.serial_number }}">{{ h.hostname }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-pink">Install on selected</button>
+    </form>
+    <span id="install-result" style="margin-left: 0.5rem;"></span>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
