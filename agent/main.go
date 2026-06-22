@@ -112,7 +112,7 @@ func listFormulas(user string) []pkg {
 			log.Printf("brew list --formula: %s", strings.TrimSpace(string(ee.Stderr)))
 		}
 	}
-	var pkgs []pkg
+	pkgs := make([]pkg, 0)
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		parts := strings.Fields(line)
 		if len(parts) == 0 {
@@ -139,11 +139,11 @@ func listCasks(user string) []pkg {
 	prefixOut, err := brewOutput(user, "--prefix")
 	if err != nil {
 		log.Printf("brew --prefix: %v", err)
-		return nil
+		return make([]pkg, 0)
 	}
 	caskroom := filepath.Join(strings.TrimSpace(string(prefixOut)), "Caskroom")
 
-	var pkgs []pkg
+	pkgs := make([]pkg, 0)
 	for _, name := range strings.Fields(string(out)) {
 		p := pkg{Name: name}
 		if v := caskVersion(caskroom, name); v != "" {
