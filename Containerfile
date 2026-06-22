@@ -26,5 +26,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=build /usr/share/uv /usr/share/uv
 COPY --from=build --chown=nonroot:nonroot /app /app
+COPY --from=build /build/pyproject.toml /pyproject.toml
 ENV PATH=/app/bin:$PATH
 CMD ["/app/bin/brewery-server"]

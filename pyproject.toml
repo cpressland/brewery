@@ -19,7 +19,7 @@ dependencies = [
 brewery-server = "server.main:run"
 
 [tool.alembic]
-script_location = "server/alembic"
+script_location = "server:alembic"
 file_template = "%%(rev)s_%%(slug)s"
 prepend_sys_path = "."
 timezone = "UTC"
