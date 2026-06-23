@@ -40,13 +40,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - id: tag
+        run: echo "name=$(echo '${{ github.ref_name }}' | tr '/' '-')" >> $GITHUB_OUTPUT
+
       - uses: docker/setup-qemu-action@v3
 
       - uses: redhat-actions/buildah-build@v2
         with:
           platforms: linux/amd64,linux/arm64
           image: ghcr.io/${{ github.repository }}
-          tags: ${{ github.ref_name }} latest
+          tags: ${{ steps.tag.outputs.name }} latest
           containerfiles: |
             ./Containerfile
 
@@ -54,7 +57,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           image: ghcr.io/${{ github.repository }}
-          tags: ${{ github.ref_name }} latest
+          tags: ${{ steps.tag.outputs.name }} latest
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
