@@ -1,6 +1,6 @@
 # Brewery
 
-Homebrew package inventory for macOS fleets. A lightweight agent runs on each Mac, collects installed formulae and casks via `brew`, and reports them to a central server. A web UI shows installed packages per host and version distribution across the estate.
+Homebrew package inventory for macOS fleets. A lightweight agent runs on each Mac, collects installed formulae and casks via `brew`, and reports them to a central server. The web UI shows installed packages per host, version distribution across the estate, outdated packages with one-click upgrade queuing, and lets you push install/uninstall/upgrade commands to individual hosts or the whole fleet.
 
 ## Components
 
@@ -32,8 +32,8 @@ brewery-server
 |---|---|---|
 | `BREWERY_DATABASE_URL` | `postgresql://brewery:brewery@localhost/brewery` | PostgreSQL connection string |
 | `BREWERY_API_KEY` | *(unset)* | Shared secret required in agent requests. Leave unset to disable auth |
-| `BREWERY_HOST` | `0.0.0.0` | Bind address |
-| `BREWERY_PORT` | `6502` | Bind port |
+| `BREWERY_PASSWORD` | *(unset)* | Password for the web UI login page. Leave unset to disable auth |
+| `SECRET_KEY` | `brewery-dev-secret` | Secret used to sign session cookies. Set to a random value in production |
 
 ## Agent
 
