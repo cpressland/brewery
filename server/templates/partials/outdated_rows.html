@@ -1,0 +1,32 @@
+{% if outdated %}
+  {% for pkg in outdated %}
+  <tr>
+    <td><a href="/packages/{{ pkg.type }}/{{ pkg.name }}">{{ pkg.name }}</a></td>
+    <td><span class="badge badge-{{ pkg.type }}">{{ pkg.type }}</span></td>
+    <td><code>{{ pkg.latest_version }}</code></td>
+    <td>
+      <div class="host-chips">
+        {% for h in pkg.outdated_hosts %}
+        <span class="host-chip">
+          <a href="/hosts/{{ h.serial_number }}">{{ h.hostname }}</a>
+          <span style="color: var(--overlay0); margin-left: 0.25rem;">{{ h.version }}</span>
+        </span>
+        {% endfor %}
+      </div>
+    </td>
+    <td style="white-space: nowrap;">
+      <span id="upgrade-result-{{ loop.index }}"></span>
+      <button class="btn btn-pink"
+        hx-post="/outdated/{{ pkg.type }}/{{ pkg.name }}/upgrade-all"
+        hx-target="#upgrade-result-{{ loop.index }}"
+        hx-swap="innerHTML">
+        Upgrade All
+      </button>
+    </td>
+  </tr>
+  {% endfor %}
+{% else %}
+  <tr>
+    <td colspan="5" class="empty">All packages are up to date.</td>
+  </tr>
+{% endif %}

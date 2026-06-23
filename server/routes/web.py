@@ -322,6 +322,45 @@ def host_delete(
     return HTMLResponse("")
 
 
+# ── Outdated ─────────────────────────────────────────────────────────────────
+
+@router.get("/outdated", response_class=HTMLResponse)
+def outdated_page(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    data = _outdated_packages(db)
+    return templates.TemplateResponse(request, "outdated.html", {"outdated": data})
+
+
+@router.get("/outdated-partial", response_class=HTMLResponse)
+def outdated_partial(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    data = _outdated_packages(db)
+    return templates.TemplateResponse(request, "partials/outdated_rows.html", {"outdated": data})
+
+
+@router.post("/outdated/{pkg_type}/{name:path}/upgrade-all", response_class=HTMLResponse)
+def outdated_upgrade_all(
+    pkg_type: str,
+    name: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    if pkg_type not in ("formula", "cask"):
+        raise HTTPException(status_code=400, detail="Invalid package type")
+    data = _outdated_packages(db)
+    pkg_data = next((p for p in data if p["name"] == name and p["type"] == pkg_type), None)
+    if not pkg_data:
+        return HTMLResponse('<span class="queued-badge">Already up to date</span>')
+    serials = [h["serial_number"] for h in pkg_data["outdated_hosts"]]
+    hosts = db.query(Host).filter(Host.serial_number.in_(serials)).all()
+    cmds = [
+        Command(host_id=h.id, action="upgrade", package_name=name, package_type=pkg_type)
+        for h in hosts
+    ]
+    db.add_all(cmds)
+    db.commit()
+    n = len(hosts)
+    return HTMLResponse(f'<span class="queued-badge">Queued upgrade for {n} host{"s" if n != 1 else ""}</span>')
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _host_data(sort: str, dir: str, db: Session) -> list[dict]:
@@ -396,3 +435,39 @@ def _package_rows(q: str, sort: str, dir: str, db: Session) -> list:
         query = query.filter(Package.name.ilike(f"%{q}%"))
     query = query.order_by(col.desc() if dir == "desc" else col.asc())
     return query.all()
+
+
+def _outdated_packages(db: Session) -> list[dict]:
+    rows = (
+        db.query(Package, Host)
+        .join(Host, Package.host_id == Host.id)
+        .order_by(Package.name, Package.type, Host.hostname)
+        .all()
+    )
+
+    groups: dict[tuple, list] = defaultdict(list)
+    for pkg, host in rows:
+        groups[(pkg.name, pkg.type)].append((pkg, host))
+
+    outdated = []
+    for (name, pkg_type), group in groups.items():
+        versions = [p.version or "unknown" for p, _ in group]
+        latest = _latest_version(versions)
+        if latest is None:
+            continue
+        outdated_group = [(p, h) for p, h in group if (p.version or "unknown") != latest]
+        if not outdated_group:
+            continue
+        outdated.append({
+            "name": name,
+            "type": pkg_type,
+            "latest_version": latest,
+            "outdated_count": len(outdated_group),
+            "outdated_hosts": [
+                {"hostname": h.hostname, "serial_number": h.serial_number, "version": p.version or "unknown"}
+                for p, h in outdated_group
+            ],
+        })
+
+    outdated.sort(key=lambda x: x["name"])
+    return outdated

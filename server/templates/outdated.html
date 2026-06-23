@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Brewery — Outdated{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Outdated Packages</h2>
+  <p class="sub">
+    {% if outdated %}
+      {{ outdated | length }} package{% if outdated | length != 1 %}s{% endif %} with hosts behind the latest version
+    {% else %}
+      All packages are up to date
+    {% endif %}
+  </p>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Latest Version</th>
+        <th>Outdated Hosts</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="outdated-body"
+      hx-get="/outdated-partial"
+      hx-trigger="every 60s"
+      hx-swap="innerHTML">
+      {% include "partials/outdated_rows.html" %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
