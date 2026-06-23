@@ -43,7 +43,7 @@ jobs:
       - id: tag
         run: echo "name=$(echo '${{ github.ref_name }}' | tr '/' '-')" >> $GITHUB_OUTPUT
 
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
 
       - uses: redhat-actions/buildah-build@v2
         with:
