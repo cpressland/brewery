@@ -79,9 +79,10 @@
       </tr>
     </thead>
     <tbody id="package-body"
-      hx-get="/packages/search?sort={{ sort }}&dir={{ dir }}&q={{ q }}"
+      hx-get="/packages/search?sort={{ sort }}&dir={{ dir }}"
       hx-trigger="every 30s"
-      hx-swap="innerHTML">
+      hx-swap="innerHTML"
+      hx-include="[name='q']">
       {% include "partials/package_rows.html" %}
     </tbody>
   </table>
