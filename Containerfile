@@ -1,5 +1,5 @@
 FROM docker.io/debian:13 AS build
-COPY --from=ghcr.io/astral-sh/uv:0.11.23 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.11.25 /uv /usr/local/bin/uv
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
