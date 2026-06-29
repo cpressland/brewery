@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Brewery — Tags{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Tags</h2>
+  <p class="sub">Assign tags to hosts and define required or banned packages per tag.</p>
+</div>
+
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="section-header">New Tag</div>
+  <div class="card-body">
+    <form method="post" action="/tags" class="inline-form">
+      <input type="text" name="name" placeholder="Tag name" required>
+      <button type="submit" class="btn btn-pink">Create</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Required</th>
+        <th>Banned</th>
+        <th>Hosts</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if tags %}
+        {% for tag in tags %}
+        <tr>
+          <td><a href="/tags/{{ tag.id }}">{{ tag.name }}</a></td>
+          <td>{{ tag.packages | selectattr('policy', 'equalto', 'required') | list | length }}</td>
+          <td>{{ tag.packages | selectattr('policy', 'equalto', 'banned') | list | length }}</td>
+          <td>{{ tag.hosts | length }}</td>
+          <td>
+            <button class="btn-danger"
+              hx-delete="/tags/{{ tag.id }}"
+              hx-confirm="Delete tag '{{ tag.name }}'?"
+              hx-target="closest tr"
+              hx-swap="outerHTML">×</button>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="5" class="empty">No tags yet. Create one above.</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

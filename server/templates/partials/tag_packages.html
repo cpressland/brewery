@@ -1,0 +1,23 @@
+{% if tag.packages %}
+{% for tp in tag.packages | sort(attribute='name') %}
+<tr>
+  <td>{{ tp.name }}</td>
+  <td><span class="badge badge-{{ tp.type }}">{{ tp.type }}</span></td>
+  <td>
+    <span class="badge" style="background: {% if tp.policy == 'required' %}rgba(166,227,161,0.15); color: var(--green){% else %}rgba(243,139,168,0.15); color: var(--red){% endif %};">
+      {{ tp.policy }}
+    </span>
+  </td>
+  <td>
+    <button class="btn-danger"
+      hx-delete="/tags/{{ tag.id }}/packages/{{ tp.id }}"
+      hx-target="#tag-packages-body"
+      hx-swap="innerHTML">×</button>
+  </td>
+</tr>
+{% endfor %}
+{% else %}
+<tr>
+  <td colspan="4" class="empty">No packages defined for this tag.</td>
+</tr>
+{% endif %}

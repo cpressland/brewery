@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Brewery — Tag: {{ tag.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+  <div>
+    <h2>{{ tag.name }}</h2>
+    <p class="sub">
+      {{ tag.packages | selectattr('policy', 'equalto', 'required') | list | length }} required,
+      {{ tag.packages | selectattr('policy', 'equalto', 'banned') | list | length }} banned
+      &nbsp;·&nbsp;
+      {{ tag.hosts | length }} host{{ 's' if tag.hosts | length != 1 else '' }}
+    </p>
+  </div>
+  <a href="/tags" class="back-link">← All tags</a>
+</div>
+
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="section-header">Package Policies</div>
+  <div class="card-body">
+    <form class="inline-form"
+      hx-post="/tags/{{ tag.id }}/packages"
+      hx-target="#tag-packages-body"
+      hx-swap="innerHTML"
+      hx-on::after-request="this.reset()">
+      <input type="text" name="name" placeholder="Package name" required>
+      <select name="pkg_type">
+        <option value="formula">Formula</option>
+        <option value="cask">Cask</option>
+      </select>
+      <select name="policy">
+        <option value="required">Required</option>
+        <option value="banned">Banned</option>
+      </select>
+      <button type="submit" class="btn btn-pink">Add</button>
+    </form>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Package</th>
+        <th>Type</th>
+        <th>Policy</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tag-packages-body">
+      {% include "partials/tag_packages.html" %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="section-header">Hosts with this Tag</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Hostname</th>
+        <th>Serial</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if tag.hosts %}
+        {% for host in tag.hosts | sort(attribute='hostname') %}
+        <tr>
+          <td><a href="/hosts/{{ host.serial_number }}">{{ host.hostname }}</a></td>
+          <td><code>{{ host.serial_number }}</code></td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="2" class="empty">No hosts have this tag.</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

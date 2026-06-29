@@ -1,0 +1,27 @@
+<div class="host-chips" style="margin-bottom: 0.75rem; min-height: 1.5rem;">
+  {% for tag in host.tags %}
+  <span class="host-chip" style="display: inline-flex; align-items: center; gap: 0.3rem;">
+    <a href="/tags/{{ tag.id }}">{{ tag.name }}</a>
+    <button class="btn-danger"
+      hx-delete="/hosts/{{ host.serial_number }}/tags/{{ tag.id }}"
+      hx-target="#host-tags"
+      hx-swap="innerHTML">×</button>
+  </span>
+  {% else %}
+  <span style="color: var(--overlay0); font-size: 0.8125rem;">No tags assigned.</span>
+  {% endfor %}
+</div>
+{% if available_tags %}
+<form class="inline-form"
+  hx-post="/hosts/{{ host.serial_number }}/tags"
+  hx-target="#host-tags"
+  hx-swap="innerHTML"
+  hx-on::after-request="this.reset()">
+  <select name="tag_id">
+    {% for tag in available_tags %}
+    <option value="{{ tag.id }}">{{ tag.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-pink">Add Tag</button>
+</form>
+{% endif %}

@@ -9,7 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Command, Host, Package
+from ..models import Command, Host, Package, Tag, TagPackage
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(pathlib.Path(__file__).parent.parent / "templates"))
@@ -230,6 +230,9 @@ def host_detail(
     )
     packages = _filter_packages(db, host.id, q, kind, sort, dir)
 
+    all_tags = db.query(Tag).order_by(Tag.name).all()
+    available_tags = [t for t in all_tags if t not in host.tags]
+
     return templates.TemplateResponse(
         request,
         "host.html",
@@ -243,6 +246,7 @@ def host_detail(
             "kind": kind,
             "sort": sort,
             "dir": dir,
+            "available_tags": available_tags,
         },
     )
 
@@ -309,6 +313,50 @@ def host_packages_partial(
     return templates.TemplateResponse(request, "partials/packages.html", {"packages": packages})
 
 
+@router.post("/hosts/{serial_number}/tags", response_class=HTMLResponse)
+def host_add_tag(
+    serial_number: str,
+    request: Request,
+    tag_id: str = Form(...),
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    host = db.query(Host).filter(Host.serial_number == serial_number).first()
+    if not host:
+        raise HTTPException(status_code=404, detail="Host not found")
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if tag and tag not in host.tags:
+        host.tags.append(tag)
+        db.commit()
+        db.refresh(host)
+    all_tags = db.query(Tag).order_by(Tag.name).all()
+    available = [t for t in all_tags if t not in host.tags]
+    return templates.TemplateResponse(
+        request, "partials/host_tags.html", {"host": host, "available_tags": available}
+    )
+
+
+@router.delete("/hosts/{serial_number}/tags/{tag_id}", response_class=HTMLResponse)
+def host_remove_tag(
+    serial_number: str,
+    tag_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    host = db.query(Host).filter(Host.serial_number == serial_number).first()
+    if not host:
+        raise HTTPException(status_code=404, detail="Host not found")
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if tag and tag in host.tags:
+        host.tags.remove(tag)
+        db.commit()
+        db.refresh(host)
+    all_tags = db.query(Tag).order_by(Tag.name).all()
+    available = [t for t in all_tags if t not in host.tags]
+    return templates.TemplateResponse(
+        request, "partials/host_tags.html", {"host": host, "available_tags": available}
+    )
+
+
 @router.delete("/hosts/{serial_number}", response_class=HTMLResponse)
 def host_delete(
     serial_number: str,
@@ -320,6 +368,93 @@ def host_delete(
     db.delete(host)
     db.commit()
     return HTMLResponse("")
+
+
+# ── Tags ─────────────────────────────────────────────────────────────────────
+
+@router.get("/tags", response_class=HTMLResponse)
+def tags_list(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    tags = db.query(Tag).order_by(Tag.name).all()
+    return templates.TemplateResponse(request, "tags.html", {"tags": tags})
+
+
+@router.post("/tags", response_class=HTMLResponse)
+def tags_create(
+    request: Request,
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    name = name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Tag name required")
+    if db.query(Tag).filter(Tag.name == name).first():
+        raise HTTPException(status_code=400, detail="Tag already exists")
+    tag = Tag(name=name)
+    db.add(tag)
+    db.commit()
+    return RedirectResponse(url="/tags", status_code=303)
+
+
+@router.get("/tags/{tag_id}", response_class=HTMLResponse)
+def tag_detail(tag_id: str, request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return templates.TemplateResponse(request, "tag.html", {"tag": tag})
+
+
+@router.post("/tags/{tag_id}/packages", response_class=HTMLResponse)
+def tag_add_package(
+    tag_id: str,
+    request: Request,
+    name: str = Form(...),
+    pkg_type: str = Form(...),
+    policy: str = Form(...),
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    if pkg_type not in ("formula", "cask") or policy not in ("required", "banned"):
+        raise HTTPException(status_code=400, detail="Invalid type or policy")
+    name = name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Package name required")
+    existing = db.query(TagPackage).filter(
+        TagPackage.tag_id == tag.id, TagPackage.name == name, TagPackage.type == pkg_type
+    ).first()
+    if not existing:
+        db.add(TagPackage(tag_id=tag.id, name=name, type=pkg_type, policy=policy))
+        db.commit()
+        db.refresh(tag)
+    return templates.TemplateResponse(request, "partials/tag_packages.html", {"tag": tag})
+
+
+@router.delete("/tags/{tag_id}/packages/{pkg_id}", response_class=HTMLResponse)
+def tag_remove_package(
+    tag_id: str,
+    pkg_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    tp = db.query(TagPackage).filter(TagPackage.id == pkg_id, TagPackage.tag_id == tag_id).first()
+    if tp:
+        db.delete(tp)
+        db.commit()
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return templates.TemplateResponse(request, "partials/tag_packages.html", {"tag": tag})
+
+
+@router.delete("/tags/{tag_id}", response_class=HTMLResponse)
+def tag_delete(tag_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    db.delete(tag)
+    db.commit()
+    return HTMLResponse("", headers={"HX-Redirect": "/tags"})
 
 
 # ── Outdated ─────────────────────────────────────────────────────────────────

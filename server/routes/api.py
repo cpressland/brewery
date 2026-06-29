@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Command, Host, Package
+from ..models import Command, Host, Package, Tag, TagPackage
 from ..schemas import CommandOut, SyncRequest, SyncResponse
 from ..settings import settings
 
@@ -47,6 +47,40 @@ def sync(
     ]
     db.add_all(new_packages)
     db.commit()
+
+    # Apply tag policies: queue installs for required packages not present,
+    # and uninstalls for banned packages that are present.
+    tag_pkgs = (
+        db.query(TagPackage)
+        .join(TagPackage.tag)
+        .join(Tag.hosts)
+        .filter(Host.id == host.id)
+        .all()
+    )
+    if tag_pkgs:
+        installed = {(p.name, p.type) for p in new_packages}
+        existing_pending = {
+            (c.action, c.package_name, c.package_type)
+            for c in db.query(Command).filter(
+                Command.host_id == host.id, Command.status == "pending"
+            ).all()
+        }
+        policy_cmds = []
+        seen = set()
+        for tp in tag_pkgs:
+            if tp.policy == "required":
+                key = ("install", tp.name, tp.type)
+                if (tp.name, tp.type) not in installed and key not in existing_pending and key not in seen:
+                    policy_cmds.append(Command(host_id=host.id, action="install", package_name=tp.name, package_type=tp.type))
+                    seen.add(key)
+            elif tp.policy == "banned":
+                key = ("uninstall", tp.name, tp.type)
+                if (tp.name, tp.type) in installed and key not in existing_pending and key not in seen:
+                    policy_cmds.append(Command(host_id=host.id, action="uninstall", package_name=tp.name, package_type=tp.type))
+                    seen.add(key)
+        if policy_cmds:
+            db.add_all(policy_cmds)
+            db.commit()
 
     pending = (
         db.query(Command)

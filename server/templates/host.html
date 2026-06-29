@@ -39,6 +39,13 @@
 </div>
 
 <div class="card" style="margin-bottom: 1.5rem;">
+  <div class="section-header">Tags</div>
+  <div class="card-body" id="host-tags">
+    {% include "partials/host_tags.html" %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 1.5rem;">
   <div class="section-header">Queue Command</div>
   <div class="card-body">
     <form hx-post="/hosts/{{ host.serial_number }}/commands"
