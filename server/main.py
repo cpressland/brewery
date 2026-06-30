@@ -1,3 +1,4 @@
+import base64
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -25,12 +26,25 @@ app.include_router(api_router)
 app.include_router(web_router)
 
 
+def _basic_auth_valid(request: Request, password: str) -> bool:
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("basic "):
+        return False
+    try:
+        _, _, supplied = base64.b64decode(auth[6:]).decode().partition(":")
+        return supplied == password
+    except Exception:
+        return False
+
+
 class _AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         password = os.environ.get("BREWERY_PASSWORD")
         if password:
             path = request.url.path
             if not path.startswith("/api") and path != "/login":
+                if path == "/install" and _basic_auth_valid(request, password):
+                    return await call_next(request)
                 if not request.session.get("logged_in"):
                     return RedirectResponse(url="/login", status_code=302)
         return await call_next(request)

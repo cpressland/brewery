@@ -39,13 +39,13 @@ brewery-server
 
 ### Quick install
 
+The server generates a personalised install script at `/install` with the server URL and API key already embedded:
+
 ```sh
-BREWERY_SERVER_URL=http://brewery.internal:6502 \
-BREWERY_API_KEY=your-secret-key \
-curl -fsSL https://raw.githubusercontent.com/cpressland/brewery/main/install.sh | sh
+curl -fsSL https://your-brewery-server/install | sh
 ```
 
-`BREWERY_API_KEY` is optional — omit it if the server has no API key set.
+Logs are written to `/var/log/brewery-agent.log`.
 
 ### Build
 
@@ -54,14 +54,13 @@ cd agent
 go build -o brewery-agent .
 ```
 
-### Install
+### Manual install
 
 ```sh
 sudo cp brewery-agent /usr/local/bin/brewery-agent
-sudo cp com.brewery.agent.plist /Library/LaunchDaemons/com.brewery.agent.plist
 ```
 
-Edit `/Library/LaunchDaemons/com.brewery.agent.plist` to set `BREWERY_SERVER_URL` (and optionally `BREWERY_API_KEY`), then load the daemon:
+Create `/Library/LaunchDaemons/com.brewery.agent.plist` with `BREWERY_SERVER_URL` and `BREWERY_API_KEY` set, then load the daemon:
 
 ```sh
 sudo launchctl load /Library/LaunchDaemons/com.brewery.agent.plist
