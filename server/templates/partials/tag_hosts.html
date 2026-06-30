@@ -1,0 +1,77 @@
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="section-header">Hosts with this Tag</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Hostname</th>
+        <th>Serial</th>
+        <th style="width: 2rem;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if tag.hosts %}
+        {% for host in tag.hosts | sort(attribute='hostname') %}
+        <tr>
+          <td><a href="/hosts/{{ host.serial_number }}">{{ host.hostname }}</a></td>
+          <td><code>{{ host.serial_number }}</code></td>
+          <td>
+            <button class="btn-danger"
+              hx-delete="/tags/{{ tag.id }}/hosts/{{ host.serial_number }}"
+              hx-target="#tag-hosts-section"
+              hx-swap="innerHTML">×</button>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="3" class="empty">No hosts have this tag.</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% if available_host_data %}
+<div class="card">
+  <div class="section-header">Add Hosts</div>
+  <form hx-post="/tags/{{ tag.id }}/hosts" hx-target="#tag-hosts-section" hx-swap="innerHTML">
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 2.5rem; padding: 0.625rem 0.75rem;">
+            <input type="checkbox" id="add-hosts-all" onchange="addHostsToggleAll(this)" title="Select all">
+          </th>
+          <th>Hostname</th>
+          <th>Serial</th>
+          <th>Formulas</th>
+          <th>Casks</th>
+          <th>Taps</th>
+          <th>Agent</th>
+          <th>Last Seen</th>
+        </tr>
+      </thead>
+      <tbody id="add-hosts-body">
+        {% for item in available_host_data %}
+        <tr style="cursor: pointer;" onclick="addHostsToggleRow(this)">
+          <td style="padding: 0.5rem 0.75rem;" onclick="event.stopPropagation()">
+            <input type="checkbox" name="serials" value="{{ item.host.serial_number }}" onchange="addHostsUpdateSelectAll()">
+          </td>
+          <td>{{ item.host.hostname }}</td>
+          <td><code>{{ item.host.serial_number }}</code></td>
+          <td><span class="badge badge-formula">{{ item.formulas }}</span></td>
+          <td><span class="badge badge-cask">{{ item.casks }}</span></td>
+          <td><span class="badge badge-tap">{{ item.taps }}</span></td>
+          <td><code>{{ item.host.agent_version or '—' }}</code></td>
+          <td>
+            <code>{% if item.host.last_seen %}{{ item.host.last_seen.strftime('%Y-%m-%d %H:%M') }} UTC{% else %}—{% endif %}</code>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div style="padding: 0.75rem 1rem; border-top: 1px solid var(--surface0);">
+      <button type="submit" class="btn btn-pink">Add Selected</button>
+    </div>
+  </form>
+</div>
+{% endif %}

@@ -10,7 +10,7 @@ from sqlalchemy import func, literal
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Command, Host, InstalledTap, Package, Tag, TagPackage, TagTap
+from ..models import Command, Host, InstalledTap, Package, Tag, TagPackage
 
 
 class PackageRow(NamedTuple):
@@ -470,7 +470,31 @@ def tag_detail(tag_id: str, request: Request, db: Session = Depends(get_db)) -> 
     tag = db.query(Tag).filter(Tag.id == tag_id).first()
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
-    return templates.TemplateResponse(request, "tag.html", {"tag": tag})
+    return templates.TemplateResponse(
+        request, "tag.html", {"tag": tag, "available_host_data": _available_host_data(tag, db)}
+    )
+
+
+@router.post("/tags/{tag_id}/hosts", response_class=HTMLResponse)
+def tag_add_hosts(
+    tag_id: str,
+    request: Request,
+    serials: list[str] = Form(default=[]),
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    if serials:
+        hosts = db.query(Host).filter(Host.serial_number.in_(serials)).all()
+        for host in hosts:
+            if tag not in host.tags:
+                host.tags.append(tag)
+        db.commit()
+        db.refresh(tag)
+    return templates.TemplateResponse(
+        request, "partials/tag_hosts.html", {"tag": tag, "available_host_data": _available_host_data(tag, db)}
+    )
 
 
 @router.post("/tags/{tag_id}/packages", response_class=HTMLResponse)
@@ -485,7 +509,7 @@ def tag_add_package(
     tag = db.query(Tag).filter(Tag.id == tag_id).first()
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
-    if pkg_type not in ("formula", "cask") or policy not in ("required", "banned"):
+    if pkg_type not in ("formula", "cask", "tap") or policy not in ("required", "banned"):
         raise HTTPException(status_code=400, detail="Invalid type or policy")
     name = name.strip()
     if not name:
@@ -517,42 +541,25 @@ def tag_remove_package(
     return templates.TemplateResponse(request, "partials/tag_packages.html", {"tag": tag})
 
 
-@router.post("/tags/{tag_id}/taps", response_class=HTMLResponse)
-def tag_add_tap(
+
+@router.delete("/tags/{tag_id}/hosts/{serial_number}", response_class=HTMLResponse)
+def tag_remove_host(
     tag_id: str,
+    serial_number: str,
     request: Request,
-    name: str = Form(...),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     tag = db.query(Tag).filter(Tag.id == tag_id).first()
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
-    name = name.strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Tap name required")
-    existing = db.query(TagTap).filter(TagTap.tag_id == tag.id, TagTap.name == name).first()
-    if not existing:
-        db.add(TagTap(tag_id=tag.id, name=name))
+    host = db.query(Host).filter(Host.serial_number == serial_number).first()
+    if host and host in tag.hosts:
+        tag.hosts.remove(host)
         db.commit()
         db.refresh(tag)
-    return templates.TemplateResponse(request, "partials/tag_taps.html", {"tag": tag})
-
-
-@router.delete("/tags/{tag_id}/taps/{tap_id}", response_class=HTMLResponse)
-def tag_remove_tap(
-    tag_id: str,
-    tap_id: str,
-    request: Request,
-    db: Session = Depends(get_db),
-) -> HTMLResponse:
-    tt = db.query(TagTap).filter(TagTap.id == tap_id, TagTap.tag_id == tag_id).first()
-    if tt:
-        db.delete(tt)
-        db.commit()
-    tag = db.query(Tag).filter(Tag.id == tag_id).first()
-    if not tag:
-        raise HTTPException(status_code=404, detail="Tag not found")
-    return templates.TemplateResponse(request, "partials/tag_taps.html", {"tag": tag})
+    return templates.TemplateResponse(
+        request, "partials/tag_hosts.html", {"tag": tag, "available_host_data": _available_host_data(tag, db)}
+    )
 
 
 @router.delete("/tags/{tag_id}", response_class=HTMLResponse)
@@ -702,6 +709,21 @@ def _package_rows(q: str, sort: str, dir: str, db: Session, kind: str = "") -> l
         query = query.filter(Package.name.ilike(f"%{q}%"))
     query = query.order_by(col.desc() if dir == "desc" else col.asc())
     return query.all()
+
+
+def _available_host_data(tag: Tag, db: Session) -> list[dict]:
+    tag_host_ids = {h.id for h in tag.hosts}
+    hosts = db.query(Host).order_by(Host.hostname).all()
+    return [
+        {
+            "host": host,
+            "formulas": db.query(Package).filter(Package.host_id == host.id, Package.type == "formula").count(),
+            "casks": db.query(Package).filter(Package.host_id == host.id, Package.type == "cask").count(),
+            "taps": db.query(InstalledTap).filter(InstalledTap.host_id == host.id).count(),
+        }
+        for host in hosts
+        if host.id not in tag_host_ids
+    ]
 
 
 def _outdated_packages(db: Session) -> list[dict]:
