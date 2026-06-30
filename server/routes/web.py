@@ -4,7 +4,7 @@ from collections import defaultdict
 from typing import NamedTuple
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, literal
 from sqlalchemy.orm import Session
@@ -47,6 +47,29 @@ def logout(request: Request) -> RedirectResponse:
     return RedirectResponse(url="/login", status_code=303)
 
 
+# ── Install script ────────────────────────────────────────────────────────────
+
+@router.get("/install")
+def install_script(request: Request) -> Response:
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("host", request.url.netloc)
+    server_url = f"{scheme}://{host}"
+    api_key = os.environ.get("BREWERY_API_KEY", "")
+    rendered = templates.get_template("install.sh").render(
+        server_url=server_url,
+        api_key=api_key,
+    )
+    return Response(content=rendered, media_type="text/plain; charset=utf-8")
+
+
+def _install_url(request: Request) -> str:
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("host", request.url.netloc)
+    password = os.environ.get("BREWERY_PASSWORD")
+    credentials = f":{password}@" if password else ""
+    return f"{scheme}://{credentials}{host}"
+
+
 # ── Index ─────────────────────────────────────────────────────────────────────
 
 @router.get("/", response_class=HTMLResponse)
@@ -58,7 +81,7 @@ def index(
 ) -> HTMLResponse:
     host_data = _host_data(sort, dir, db)
     return templates.TemplateResponse(
-        request, "index.html", {"hosts": host_data, "sort": sort, "dir": dir}
+        request, "index.html", {"hosts": host_data, "sort": sort, "dir": dir, "install_url": _install_url(request)}
     )
 
 

@@ -10,6 +10,17 @@
 {% endmacro %}
 
 {% block content %}
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="section-header">Install Agent</div>
+  <div class="card-body">
+    <p style="color: var(--subtext0); font-size: 0.8125rem; margin-bottom: 0.75rem;">Run this command on a new Mac to install and configure the Brewery agent:</p>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <code id="install-cmd" style="background: var(--crust); border: 1px solid var(--surface0); border-radius: 6px; padding: 0.4rem 0.75rem; flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">curl -fsSL {{ install_url }}/install | sh</code>
+      <button class="btn" onclick="navigator.clipboard.writeText(document.getElementById('install-cmd').textContent).then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy', 1500); })">Copy</button>
+    </div>
+  </div>
+</div>
+
 <div class="page-header">
   <h2>Hosts</h2>
   <p class="sub" id="host-count">{{ hosts | length }} host{% if hosts | length != 1 %}s{% endif %} reporting</p>
