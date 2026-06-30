@@ -16,31 +16,6 @@
 </div>
 
 <div class="card" style="margin-bottom: 1.5rem;">
-  <div class="section-header">Taps</div>
-  <div class="card-body">
-    <form class="inline-form"
-      hx-post="/tags/{{ tag.id }}/taps"
-      hx-target="#tag-taps-body"
-      hx-swap="innerHTML"
-      hx-on::after-request="this.reset()">
-      <input type="text" name="name" placeholder="e.g. slp/krun" required>
-      <button type="submit" class="btn btn-pink">Add</button>
-    </form>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th>Tap</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody id="tag-taps-body">
-      {% include "partials/tag_taps.html" %}
-    </tbody>
-  </table>
-</div>
-
-<div class="card" style="margin-bottom: 1.5rem;">
   <div class="section-header">Package Policies</div>
   <div class="card-body">
     <form class="inline-form"
@@ -48,10 +23,11 @@
       hx-target="#tag-packages-body"
       hx-swap="innerHTML"
       hx-on::after-request="this.reset()">
-      <input type="text" name="name" placeholder="Package name" required>
-      <select name="pkg_type">
+      <input type="text" name="name" placeholder="Package or tap name" required>
+      <select name="pkg_type" id="tag-pkg-type" onchange="tagUpdatePlaceholder(this.value)">
         <option value="formula">Formula</option>
         <option value="cask">Cask</option>
+        <option value="tap">Tap</option>
       </select>
       <select name="policy">
         <option value="required">Required</option>
@@ -63,7 +39,7 @@
   <table>
     <thead>
       <tr>
-        <th>Package</th>
+        <th>Name</th>
         <th>Type</th>
         <th>Policy</th>
         <th></th>
@@ -75,29 +51,35 @@
   </table>
 </div>
 
-<div class="card">
-  <div class="section-header">Hosts with this Tag</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Hostname</th>
-        <th>Serial</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% if tag.hosts %}
-        {% for host in tag.hosts | sort(attribute='hostname') %}
-        <tr>
-          <td><a href="/hosts/{{ host.serial_number }}">{{ host.hostname }}</a></td>
-          <td><code>{{ host.serial_number }}</code></td>
-        </tr>
-        {% endfor %}
-      {% else %}
-        <tr>
-          <td colspan="2" class="empty">No hosts have this tag.</td>
-        </tr>
-      {% endif %}
-    </tbody>
-  </table>
+<div id="tag-hosts-section">
+  {% include "partials/tag_hosts.html" %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function tagUpdatePlaceholder(type) {
+  document.querySelector('[name="name"]').placeholder =
+    type === 'tap' ? 'Tap name (e.g. slp/krun)' : 'Package name';
+}
+
+function addHostsToggleAll(cb) {
+  document.querySelectorAll('#add-hosts-body input[name="serials"]').forEach(c => c.checked = cb.checked);
+}
+
+function addHostsToggleRow(tr) {
+  const cb = tr.querySelector('input[name="serials"]');
+  cb.checked = !cb.checked;
+  addHostsUpdateSelectAll();
+}
+
+function addHostsUpdateSelectAll() {
+  const all = document.querySelectorAll('#add-hosts-body input[name="serials"]');
+  const checked = [...all].filter(c => c.checked);
+  const allCb = document.getElementById('add-hosts-all');
+  if (!allCb) return;
+  allCb.checked = all.length > 0 && checked.length === all.length;
+  allCb.indeterminate = checked.length > 0 && checked.length < all.length;
+}
+</script>
 {% endblock %}
