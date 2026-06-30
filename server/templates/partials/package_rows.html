@@ -1,7 +1,13 @@
 {% if packages %}
   {% for pkg in packages %}
   <tr>
-    <td><a href="/packages/{{ pkg.type }}/{{ pkg.name }}">{{ pkg.name }}</a></td>
+    <td>
+      {% if pkg.type == "tap" %}
+      {{ pkg.name }}
+      {% else %}
+      <a href="/packages/{{ pkg.type }}/{{ pkg.name }}">{{ pkg.name }}</a>
+      {% endif %}
+    </td>
     <td><span class="badge badge-{{ pkg.type }}">{{ pkg.type }}</span></td>
     <td><code>{{ pkg.host_count }}</code></td>
   </tr>

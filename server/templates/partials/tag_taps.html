@@ -1,0 +1,17 @@
+{% if tag.taps %}
+{% for tt in tag.taps | sort(attribute='name') %}
+<tr>
+  <td><code>{{ tt.name }}</code></td>
+  <td>
+    <button class="btn-danger"
+      hx-delete="/tags/{{ tag.id }}/taps/{{ tt.id }}"
+      hx-target="#tag-taps-body"
+      hx-swap="innerHTML">×</button>
+  </td>
+</tr>
+{% endfor %}
+{% else %}
+<tr>
+  <td colspan="2" class="empty">No taps defined for this tag.</td>
+</tr>
+{% endif %}

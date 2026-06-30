@@ -3,7 +3,7 @@
 
 {% macro sort_link(label, field) %}
   {% set next_dir = 'desc' if sort == field and dir == 'asc' else 'asc' %}
-  <a href="/packages?sort={{ field }}&dir={{ next_dir }}&q={{ q }}" class="sort-link">
+  <a href="/packages?sort={{ field }}&dir={{ next_dir }}&q={{ q }}&kind={{ kind }}" class="sort-link">
     {{ label }}
     {% if sort == field %}<span class="sort-arrow">{{ '▲' if dir == 'asc' else '▼' }}</span>{% endif %}
   </a>
@@ -12,20 +12,29 @@
 {% block content %}
 <div class="page-header">
   <h2>Packages</h2>
-  <p class="sub">{{ packages | length }} unique package{% if packages | length != 1 %}s{% endif %} across all hosts</p>
+  <p class="sub">
+    {{ packages | length }}
+    {% if kind == "tap" %}unique tap{% if packages | length != 1 %}s{% endif %}
+    {% elif kind == "formula" %}unique formula{% if packages | length != 1 %}s{% endif %}
+    {% elif kind == "cask" %}unique cask{% if packages | length != 1 %}s{% endif %}
+    {% else %}unique package{% if packages | length != 1 %}s{% endif %}
+    {% endif %}
+    across all hosts
+  </p>
 </div>
 
 <div class="card" style="margin-bottom: 1.5rem; overflow: visible;">
   <div class="section-header" style="border-radius: 8px 8px 0 0;">Install / Remove / Upgrade</div>
   <div class="card-body">
     <form hx-post="/packages/install" hx-target="#install-result" hx-swap="innerHTML"
-          hx-on::after-request="this.reset(); hostPickerReset()" class="inline-form">
-      <select name="package_type">
+          hx-on::after-request="this.reset(); pkgsUpdateActions('formula'); hostPickerReset()" class="inline-form">
+      <select name="package_type" id="pkgs-pkg-type" onchange="pkgsUpdateActions(this.value)">
         <option value="formula">Formula</option>
         <option value="cask">Cask</option>
+        <option value="tap">Tap</option>
       </select>
-      <input type="text" name="package_name" placeholder="package name" required style="min-width: 180px;">
-      <select name="action">
+      <input type="text" name="package_name" id="pkgs-pkg-name" placeholder="package name" required style="min-width: 180px;">
+      <select name="action" id="pkgs-action">
         <option value="install">Install</option>
         <option value="uninstall">Uninstall</option>
         <option value="upgrade">Upgrade</option>
@@ -55,14 +64,24 @@
   </div>
 </div>
 
+<div class="filter-tabs">
+  {% for label, value in [("All", ""), ("Formulas", "formula"), ("Casks", "cask"), ("Taps", "tap")] %}
+  <button
+    class="filter-tab{% if kind == value %} active{% endif %}"
+    onclick="location.href='/packages?kind={{ value }}&q={{ q }}&sort={{ sort }}&dir={{ dir }}'">
+    {{ label }}
+  </button>
+  {% endfor %}
+</div>
+
 <div class="search-wrap">
   <input
     type="search"
     name="q"
     value="{{ q }}"
-    placeholder="Search packages..."
+    placeholder="Search {% if kind == 'tap' %}taps{% else %}packages{% endif %}..."
     autofocus
-    hx-get="/packages/search?sort={{ sort }}&dir={{ dir }}"
+    hx-get="/packages/search?sort={{ sort }}&dir={{ dir }}&kind={{ kind }}"
     hx-trigger="keyup changed delay:250ms, search"
     hx-target="#package-body"
     hx-include="[name='q']"
@@ -70,7 +89,12 @@
 </div>
 
 <div class="card">
-  <table>
+  <table style="table-layout: fixed;">
+    <colgroup>
+      <col>
+      <col style="width: 8rem;">
+      <col style="width: 5rem;">
+    </colgroup>
     <thead>
       <tr>
         <th>{{ sort_link('Name', 'name') }}</th>
@@ -79,7 +103,7 @@
       </tr>
     </thead>
     <tbody id="package-body"
-      hx-get="/packages/search?sort={{ sort }}&dir={{ dir }}"
+      hx-get="/packages/search?sort={{ sort }}&dir={{ dir }}&kind={{ kind }}"
       hx-trigger="every 30s"
       hx-swap="innerHTML"
       hx-include="[name='q']">
@@ -90,6 +114,18 @@
 {% endblock %}
 {% block scripts %}
 <script>
+  function pkgsUpdateActions(type) {
+    const action = document.getElementById('pkgs-action');
+    const name   = document.getElementById('pkgs-pkg-name');
+    if (type === 'tap') {
+      action.innerHTML = '<option value="tap">Tap</option><option value="untap">Untap</option>';
+      name.placeholder = 'tap name (e.g. slp/krun)';
+    } else {
+      action.innerHTML = '<option value="install">Install</option><option value="uninstall">Uninstall</option><option value="upgrade">Upgrade</option>';
+      name.placeholder = 'package name';
+    }
+  }
+
   function hostPickerToggle() {
     document.getElementById('host-picker-dropdown').classList.toggle('open');
   }
@@ -104,9 +140,9 @@
     const checked = [...all].filter(c => c.checked);
     const label   = document.getElementById('host-picker-label');
     const allCb   = document.getElementById('host-picker-all');
-    if (checked.length === 0)              label.textContent = 'Select hosts…';
+    if (checked.length === 0)               label.textContent = 'Select hosts…';
     else if (checked.length === all.length) label.textContent = `All ${all.length} hosts`;
-    else                                   label.textContent = `${checked.length} of ${all.length} hosts`;
+    else                                    label.textContent = `${checked.length} of ${all.length} hosts`;
     allCb.checked       = checked.length === all.length;
     allCb.indeterminate = checked.length > 0 && checked.length < all.length;
   }

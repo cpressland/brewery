@@ -26,11 +26,12 @@ type pkg struct {
 }
 
 type syncRequest struct {
-	SerialNumber string `json:"serial_number"`
-	Hostname     string `json:"hostname"`
-	AgentVersion string `json:"agent_version"`
-	Formulas     []pkg  `json:"formulas"`
-	Casks        []pkg  `json:"casks"`
+	SerialNumber string   `json:"serial_number"`
+	Hostname     string   `json:"hostname"`
+	AgentVersion string   `json:"agent_version"`
+	Formulas     []pkg    `json:"formulas"`
+	Casks        []pkg    `json:"casks"`
+	Taps         []string `json:"taps"`
 }
 
 func main() {
@@ -62,6 +63,7 @@ func main() {
 	hostname, _ := os.Hostname()
 	formulas := listFormulas(user)
 	casks := listCasks(user)
+	taps := listTaps(user)
 
 	req := syncRequest{
 		SerialNumber: serial,
@@ -69,6 +71,7 @@ func main() {
 		AgentVersion: version,
 		Formulas:     formulas,
 		Casks:        casks,
+		Taps:         taps,
 	}
 
 	commands, err := postSync(serverURL, apiKey, req)
@@ -268,6 +271,23 @@ func listCasks(user string) []pkg {
 	return pkgs
 }
 
+func listTaps(user string) []string {
+	out, err := brewOutput(user, "tap")
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+			log.Printf("brew tap: %s", strings.TrimSpace(string(ee.Stderr)))
+		}
+	}
+	taps := make([]string, 0)
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		t := strings.TrimSpace(line)
+		if t != "" {
+			taps = append(taps, t)
+		}
+	}
+	return taps
+}
+
 func caskVersion(caskroom, name string) string {
 	entries, err := os.ReadDir(filepath.Join(caskroom, name))
 	if err != nil {
@@ -326,16 +346,88 @@ func postSync(serverURL, apiKey string, req syncRequest) ([]command, error) {
 	return sr.Commands, nil
 }
 
+const maxAttempts = 3
+
 func executeCommands(user string, commands []command) {
 	for _, cmd := range commands {
-		out, err := brewOutput(user, cmd.Action, "--"+cmd.PackageType, cmd.PackageName)
-		if err != nil {
-			log.Printf("command %s %s %s: failed: %v", cmd.Action, cmd.PackageType, cmd.PackageName, err)
-			if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
-				log.Printf("command stderr: %s", strings.TrimSpace(string(ee.Stderr)))
+		executeCmd(user, cmd)
+	}
+}
+
+func executeCmd(user string, cmd command) {
+	desc := cmdDesc(cmd)
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		out, err := runBrewCmd(user, cmd)
+		if err == nil {
+			if o := strings.TrimSpace(string(out)); o != "" {
+				log.Printf("command %s: ok\n%s", desc, o)
+			} else {
+				log.Printf("command %s: ok", desc)
 			}
-		} else {
-			log.Printf("command %s %s %s: ok\n%s", cmd.Action, cmd.PackageType, cmd.PackageName, strings.TrimSpace(string(out)))
+			return
+		}
+
+		stderr := brewStderr(err)
+		log.Printf("command %s: attempt %d/%d failed: %v", desc, attempt, maxAttempts, err)
+		if stderr != "" {
+			log.Printf("command %s stderr: %s", desc, stderr)
+		}
+
+		// On first untap failure caused by installed packages, remove them before retrying.
+		if attempt == 1 && cmd.Action == "untap" && strings.Contains(stderr, "Refusing to untap") {
+			for _, pkg := range parseBlockingPackages(stderr) {
+				log.Printf("command %s: removing blocking package %q", desc, pkg)
+				uninstallBlocking(user, pkg)
+			}
 		}
 	}
+	log.Printf("command %s: giving up after %d attempts", desc, maxAttempts)
+}
+
+func runBrewCmd(user string, cmd command) ([]byte, error) {
+	if cmd.Action == "tap" || cmd.Action == "trust" || cmd.Action == "untap" {
+		return brewOutput(user, cmd.Action, cmd.PackageName)
+	}
+	return brewOutput(user, cmd.Action, "--"+cmd.PackageType, cmd.PackageName)
+}
+
+func cmdDesc(cmd command) string {
+	if cmd.Action == "tap" || cmd.Action == "trust" || cmd.Action == "untap" {
+		return fmt.Sprintf("%s %s", cmd.Action, cmd.PackageName)
+	}
+	return fmt.Sprintf("%s %s %s", cmd.Action, cmd.PackageType, cmd.PackageName)
+}
+
+func brewStderr(err error) string {
+	if ee, ok := err.(*exec.ExitError); ok {
+		return strings.TrimSpace(string(ee.Stderr))
+	}
+	return ""
+}
+
+func parseBlockingPackages(stderr string) []string {
+	var pkgs []string
+	past := false
+	for _, line := range strings.Split(stderr, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "Refusing to untap") {
+			past = true
+			continue
+		}
+		if past && line != "" {
+			pkgs = append(pkgs, line)
+		}
+	}
+	return pkgs
+}
+
+func uninstallBlocking(user, pkg string) {
+	for _, typ := range []string{"formula", "cask"} {
+		out, err := brewOutput(user, "uninstall", "--"+typ, pkg)
+		if err == nil {
+			log.Printf("uninstalled blocking %s %q\n%s", typ, pkg, strings.TrimSpace(string(out)))
+			return
+		}
+	}
+	log.Printf("failed to uninstall blocking package %q", pkg)
 }
