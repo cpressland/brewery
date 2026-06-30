@@ -38,6 +38,9 @@ class Host(Base):
     tags: Mapped[list["Tag"]] = relationship(
         "Tag", secondary=host_tags, back_populates="hosts"
     )
+    installed_taps: Mapped[list["InstalledTap"]] = relationship(
+        "InstalledTap", back_populates="host", cascade="all, delete-orphan"
+    )
 
 
 class Command(Base):
@@ -80,6 +83,9 @@ class Tag(Base):
     packages: Mapped[list["TagPackage"]] = relationship(
         "TagPackage", back_populates="tag", cascade="all, delete-orphan"
     )
+    taps: Mapped[list["TagTap"]] = relationship(
+        "TagTap", back_populates="tag", cascade="all, delete-orphan"
+    )
 
 
 class TagPackage(Base):
@@ -92,3 +98,23 @@ class TagPackage(Base):
     type: Mapped[str] = mapped_column(String, nullable=False)  # formula, cask
     policy: Mapped[str] = mapped_column(String, nullable=False)  # required, banned
     tag: Mapped["Tag"] = relationship("Tag", back_populates="packages")
+
+
+class InstalledTap(Base):
+    __tablename__ = "installed_taps"
+    __table_args__ = (UniqueConstraint("host_id", "name"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    host_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    host: Mapped["Host"] = relationship("Host", back_populates="installed_taps")
+
+
+class TagTap(Base):
+    __tablename__ = "tag_taps"
+    __table_args__ = (UniqueConstraint("tag_id", "name"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tag_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tags.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)  # e.g. slp/krun
+    tag: Mapped["Tag"] = relationship("Tag", back_populates="taps")

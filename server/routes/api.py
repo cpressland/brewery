@@ -2,10 +2,11 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Command, Host, Package, Tag, TagPackage
+from ..models import Command, Host, InstalledTap, Package, Tag, TagPackage, TagTap
 from ..schemas import CommandOut, SyncRequest, SyncResponse
 from ..settings import settings
 
@@ -36,6 +37,7 @@ def sync(
     host.last_seen = datetime.now(timezone.utc)
 
     db.query(Package).filter(Package.host_id == host.id).delete()
+    db.query(InstalledTap).filter(InstalledTap.host_id == host.id).delete()
     db.flush()
 
     new_packages = [
@@ -45,7 +47,13 @@ def sync(
         Package(host_id=host.id, name=p.name, version=p.version, type="cask")
         for p in request.casks
     ]
+    new_installed_taps = [
+        InstalledTap(host_id=host.id, name=t)
+        for t in request.taps
+        if t.strip()
+    ]
     db.add_all(new_packages)
+    db.add_all(new_installed_taps)
     db.commit()
 
     # Apply tag policies: queue installs for required packages not present,
@@ -82,9 +90,48 @@ def sync(
             db.add_all(policy_cmds)
             db.commit()
 
+    # Apply tap policies: queue tap+trust for any tag-required tap not already present.
+    tag_taps = (
+        db.query(TagTap)
+        .join(TagTap.tag)
+        .join(Tag.hosts)
+        .filter(Host.id == host.id)
+        .all()
+    )
+    if tag_taps:
+        tapped = set(request.taps)
+        existing_pending_taps = {
+            (c.action, c.package_name)
+            for c in db.query(Command).filter(
+                Command.host_id == host.id,
+                Command.status == "pending",
+                Command.action.in_(["tap", "trust"]),
+            ).all()
+        }
+        tap_cmds = []
+        seen_tap_cmds: set[tuple[str, str]] = set()
+        for tt in tag_taps:
+            if tt.name not in tapped:
+                for action in ("tap", "trust"):
+                    key = (action, tt.name)
+                    if key not in existing_pending_taps and key not in seen_tap_cmds:
+                        tap_cmds.append(Command(host_id=host.id, action=action, package_name=tt.name, package_type=""))
+                        seen_tap_cmds.add(key)
+        if tap_cmds:
+            db.add_all(tap_cmds)
+            db.commit()
+
     pending = (
         db.query(Command)
         .filter(Command.host_id == host.id, Command.status == "pending")
+        .order_by(
+            case(
+                (Command.action == "tap", 0),
+                (Command.action == "trust", 1),
+                else_=2,
+            ),
+            Command.created_at,
+        )
         .all()
     )
     now = datetime.now(timezone.utc)

@@ -16,6 +16,31 @@
 </div>
 
 <div class="card" style="margin-bottom: 1.5rem;">
+  <div class="section-header">Taps</div>
+  <div class="card-body">
+    <form class="inline-form"
+      hx-post="/tags/{{ tag.id }}/taps"
+      hx-target="#tag-taps-body"
+      hx-swap="innerHTML"
+      hx-on::after-request="this.reset()">
+      <input type="text" name="name" placeholder="e.g. slp/krun" required>
+      <button type="submit" class="btn btn-pink">Add</button>
+    </form>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Tap</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tag-taps-body">
+      {% include "partials/tag_taps.html" %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-bottom: 1.5rem;">
   <div class="section-header">Package Policies</div>
   <div class="card-body">
     <form class="inline-form"

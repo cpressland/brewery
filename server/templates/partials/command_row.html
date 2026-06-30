@@ -1,7 +1,10 @@
 <tr>
   <td><code>{{ cmd.action }}</code></td>
   <td><code>{{ cmd.package_name }}</code></td>
-  <td><span class="badge badge-{{ cmd.package_type }}">{{ cmd.package_type }}</span></td>
+  <td>
+    {% set display_type = cmd.package_type if cmd.package_type else "tap" %}
+    <span class="badge badge-{{ display_type }}">{{ display_type }}</span>
+  </td>
   <td>
     {% if cmd.status == "pending" %}
     <span style="color: var(--peach);">pending</span>
@@ -12,4 +15,13 @@
     {% endif %}
   </td>
   <td><code>{{ cmd.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</code></td>
+  <td>
+    {% if cmd.status == "pending" %}
+    <button class="btn-danger"
+      hx-delete="/commands/{{ cmd.id }}"
+      hx-target="closest tr"
+      hx-swap="outerHTML"
+      hx-confirm="Cancel this command?">×</button>
+    {% endif %}
+  </td>
 </tr>

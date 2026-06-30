@@ -5,6 +5,7 @@
     <td><code>{{ item.host.serial_number }}</code></td>
     <td><span class="badge badge-formula">{{ item.formulas }}</span></td>
     <td><span class="badge badge-cask">{{ item.casks }}</span></td>
+    <td><span class="badge badge-tap">{{ item.taps }}</span></td>
     <td><code>{{ item.host.agent_version or '—' }}</code></td>
     <td>
       <code>
@@ -27,6 +28,6 @@
   {% endfor %}
 {% else %}
   <tr>
-    <td colspan="7" class="empty">No hosts have reported yet. Configure the brewery agent on your macOS systems.</td>
+    <td colspan="8" class="empty">No hosts have reported yet. Configure the brewery agent on your macOS systems.</td>
   </tr>
 {% endif %}

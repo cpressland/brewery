@@ -12,6 +12,7 @@ class SyncRequest(BaseModel):
     agent_version: str | None = None
     formulas: list[PackageIn] = []
     casks: list[PackageIn] = []
+    taps: list[str] = []
 
 
 class CommandOut(BaseModel):

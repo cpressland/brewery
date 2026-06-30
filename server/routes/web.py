@@ -1,15 +1,22 @@
 import os
 import pathlib
 from collections import defaultdict
+from typing import NamedTuple
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func
+from sqlalchemy import func, literal
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Command, Host, Package, Tag, TagPackage
+from ..models import Command, Host, InstalledTap, Package, Tag, TagPackage, TagTap
+
+
+class PackageRow(NamedTuple):
+    name: str
+    type: str
+    version: str | None
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(pathlib.Path(__file__).parent.parent / "templates"))
@@ -76,12 +83,14 @@ def packages_list(
     q: str = "",
     sort: str = "host_count",
     dir: str = "desc",
+    kind: str = "",
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    rows = _package_rows(q, sort, dir, db)
+    rows = _package_rows(q, sort, dir, db, kind)
     all_hosts = db.query(Host).order_by(Host.hostname).all()
     return templates.TemplateResponse(
-        request, "packages.html", {"packages": rows, "q": q, "all_hosts": all_hosts, "sort": sort, "dir": dir}
+        request, "packages.html",
+        {"packages": rows, "q": q, "all_hosts": all_hosts, "sort": sort, "dir": dir, "kind": kind},
     )
 
 
@@ -94,18 +103,31 @@ def packages_install(
     serials: list[str] = Form(default=[]),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
+    name = package_name.strip()
+    hosts = db.query(Host).filter(Host.serial_number.in_(serials)).all()
+    n = len(hosts)
+    if package_type == "tap":
+        if action not in ("tap", "untap"):
+            raise HTTPException(status_code=400, detail="Invalid action for tap")
+        cmds = []
+        for h in hosts:
+            cmds.append(Command(host_id=h.id, action=action, package_name=name, package_type=""))
+            if action == "tap":
+                cmds.append(Command(host_id=h.id, action="trust", package_name=name, package_type=""))
+        db.add_all(cmds)
+        db.commit()
+        verb = "tap" if action == "tap" else "untap"
+        return HTMLResponse(f'<span class="queued-badge">Queued {verb} of {name} for {n} host{"s" if n != 1 else ""}</span>')
     if package_type not in ("formula", "cask") or action not in ("install", "uninstall", "upgrade"):
         raise HTTPException(status_code=400, detail="Invalid action or package type")
-    hosts = db.query(Host).filter(Host.serial_number.in_(serials)).all()
     cmds = [
-        Command(host_id=h.id, action=action, package_name=package_name.strip(), package_type=package_type)
+        Command(host_id=h.id, action=action, package_name=name, package_type=package_type)
         for h in hosts
     ]
     db.add_all(cmds)
     db.commit()
-    n = len(hosts)
     return HTMLResponse(
-        f'<span class="queued-badge">Queued {action} of {package_name} for {n} host{"s" if n != 1 else ""}</span>'
+        f'<span class="queued-badge">Queued {action} of {name} for {n} host{"s" if n != 1 else ""}</span>'
     )
 
 
@@ -115,10 +137,11 @@ def packages_search(
     q: str = "",
     sort: str = "host_count",
     dir: str = "desc",
+    kind: str = "",
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
-    rows = _package_rows(q, sort, dir, db)
-    return templates.TemplateResponse(request, "partials/package_rows.html", {"packages": rows})
+    rows = _package_rows(q, sort, dir, db, kind)
+    return templates.TemplateResponse(request, "partials/package_rows.html", {"packages": rows, "kind": kind})
 
 
 @router.get("/packages/{pkg_type}/{name:path}", response_class=HTMLResponse)
@@ -232,6 +255,7 @@ def host_detail(
 
     all_tags = db.query(Tag).order_by(Tag.name).all()
     available_tags = [t for t in all_tags if t not in host.tags]
+    tap_count = db.query(InstalledTap).filter(InstalledTap.host_id == host.id).count()
 
     return templates.TemplateResponse(
         request,
@@ -241,6 +265,7 @@ def host_detail(
             "packages": packages,
             "formula_count": formula_count,
             "cask_count": cask_count,
+            "tap_count": tap_count,
             "commands": commands,
             "q": q,
             "kind": kind,
@@ -263,17 +288,30 @@ def host_queue_command(
     host = db.query(Host).filter(Host.serial_number == serial_number).first()
     if not host:
         raise HTTPException(status_code=404, detail="Host not found")
-    if action not in ("install", "uninstall", "upgrade") or package_type not in ("formula", "cask"):
+    name = package_name.strip()
+    if package_type == "tap":
+        if action == "tap":
+            tap_cmd = Command(host_id=host.id, action="tap", package_name=name, package_type="")
+            trust_cmd = Command(host_id=host.id, action="trust", package_name=name, package_type="")
+            db.add_all([tap_cmd, trust_cmd])
+            db.commit()
+            return templates.TemplateResponse(
+                request, "partials/command_rows.html", {"commands": [tap_cmd, trust_cmd]}
+            )
+        elif action == "untap":
+            cmd = Command(host_id=host.id, action="untap", package_name=name, package_type="")
+            db.add(cmd)
+            db.commit()
+            return templates.TemplateResponse(request, "partials/command_row.html", {"cmd": cmd})
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action for tap")
+    elif package_type in ("formula", "cask") and action in ("install", "uninstall", "upgrade"):
+        cmd = Command(host_id=host.id, action=action, package_name=name, package_type=package_type)
+        db.add(cmd)
+        db.commit()
+        return templates.TemplateResponse(request, "partials/command_row.html", {"cmd": cmd})
+    else:
         raise HTTPException(status_code=400, detail="Invalid action or package type")
-    cmd = Command(
-        host_id=host.id,
-        action=action,
-        package_name=package_name.strip(),
-        package_type=package_type,
-    )
-    db.add(cmd)
-    db.commit()
-    return templates.TemplateResponse(request, "partials/command_row.html", {"cmd": cmd})
 
 
 @router.get("/hosts/{serial_number}/commands", response_class=HTMLResponse)
@@ -355,6 +393,15 @@ def host_remove_tag(
     return templates.TemplateResponse(
         request, "partials/host_tags.html", {"host": host, "available_tags": available}
     )
+
+
+@router.delete("/commands/{command_id}", response_class=HTMLResponse)
+def command_delete(command_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
+    cmd = db.query(Command).filter(Command.id == command_id, Command.status == "pending").first()
+    if cmd:
+        db.delete(cmd)
+        db.commit()
+    return HTMLResponse("")
 
 
 @router.delete("/hosts/{serial_number}", response_class=HTMLResponse)
@@ -447,6 +494,44 @@ def tag_remove_package(
     return templates.TemplateResponse(request, "partials/tag_packages.html", {"tag": tag})
 
 
+@router.post("/tags/{tag_id}/taps", response_class=HTMLResponse)
+def tag_add_tap(
+    tag_id: str,
+    request: Request,
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    name = name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Tap name required")
+    existing = db.query(TagTap).filter(TagTap.tag_id == tag.id, TagTap.name == name).first()
+    if not existing:
+        db.add(TagTap(tag_id=tag.id, name=name))
+        db.commit()
+        db.refresh(tag)
+    return templates.TemplateResponse(request, "partials/tag_taps.html", {"tag": tag})
+
+
+@router.delete("/tags/{tag_id}/taps/{tap_id}", response_class=HTMLResponse)
+def tag_remove_tap(
+    tag_id: str,
+    tap_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    tt = db.query(TagTap).filter(TagTap.id == tap_id, TagTap.tag_id == tag_id).first()
+    if tt:
+        db.delete(tt)
+        db.commit()
+    tag = db.query(Tag).filter(Tag.id == tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return templates.TemplateResponse(request, "partials/tag_taps.html", {"tag": tag})
+
+
 @router.delete("/tags/{tag_id}", response_class=HTMLResponse)
 def tag_delete(tag_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
     tag = db.query(Tag).filter(Tag.id == tag_id).first()
@@ -509,6 +594,9 @@ def _host_data(sort: str, dir: str, db: Session) -> list[dict]:
             "casks": db.query(Package)
             .filter(Package.host_id == host.id, Package.type == "cask")
             .count(),
+            "taps": db.query(InstalledTap)
+            .filter(InstalledTap.host_id == host.id)
+            .count(),
         }
         for host in hosts
     ]
@@ -521,6 +609,8 @@ def _host_data(sort: str, dir: str, db: Session) -> list[dict]:
             return item["formulas"]
         if sort == "casks":
             return item["casks"]
+        if sort == "taps":
+            return item["taps"]
         if sort == "agent_version":
             return (h.agent_version or "").lower()
         if sort == "last_seen":
@@ -532,6 +622,12 @@ def _host_data(sort: str, dir: str, db: Session) -> list[dict]:
 
 
 def _filter_packages(db: Session, host_id, q: str, kind: str, sort: str = "name", dir: str = "asc") -> list:
+    if kind == "tap":
+        query = db.query(InstalledTap).filter(InstalledTap.host_id == host_id)
+        if q:
+            query = query.filter(InstalledTap.name.ilike(f"%{q}%"))
+        col = InstalledTap.name.desc() if dir == "desc" else InstalledTap.name.asc()
+        return [PackageRow(name=t.name, type="tap", version=None) for t in query.order_by(col).all()]
     query = db.query(Package).filter(Package.host_id == host_id)
     if kind in ("formula", "cask"):
         query = query.filter(Package.type == kind)
@@ -554,7 +650,18 @@ def _latest_version(version_strs: list[str]) -> str | None:
     return max(known, key=sort_key)
 
 
-def _package_rows(q: str, sort: str, dir: str, db: Session) -> list:
+def _package_rows(q: str, sort: str, dir: str, db: Session, kind: str = "") -> list:
+    if kind == "tap":
+        tap_sort = func.count(InstalledTap.host_id) if sort == "host_count" else InstalledTap.name
+        query = db.query(
+            InstalledTap.name,
+            literal("tap").label("type"),
+            func.count(InstalledTap.host_id).label("host_count"),
+        ).group_by(InstalledTap.name)
+        if q:
+            query = query.filter(InstalledTap.name.ilike(f"%{q}%"))
+        return query.order_by(tap_sort.desc() if dir == "desc" else tap_sort.asc()).all()
+
     col = {
         "name": Package.name,
         "type": Package.type,
@@ -566,6 +673,8 @@ def _package_rows(q: str, sort: str, dir: str, db: Session) -> list:
         Package.type,
         func.count(Package.host_id).label("host_count"),
     ).group_by(Package.name, Package.type)
+    if kind in ("formula", "cask"):
+        query = query.filter(Package.type == kind)
     if q:
         query = query.filter(Package.name.ilike(f"%{q}%"))
     query = query.order_by(col.desc() if dir == "desc" else col.asc())
