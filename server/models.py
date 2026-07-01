@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Table, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, Table, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -95,6 +95,27 @@ class TagPackage(Base):
     type: Mapped[str] = mapped_column(String, nullable=False)  # formula, cask, tap
     policy: Mapped[str] = mapped_column(String, nullable=False)  # required, banned
     tag: Mapped["Tag"] = relationship("Tag", back_populates="packages")
+
+
+class Vulnerability(Base):
+    __tablename__ = "vulnerabilities"
+    __table_args__ = (UniqueConstraint("package_name", "package_type", "osv_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    package_name: Mapped[str] = mapped_column(String, nullable=False)
+    package_type: Mapped[str] = mapped_column(String, nullable=False)  # formula, cask
+    osv_id: Mapped[str] = mapped_column(String, nullable=False)
+    aliases: Mapped[str | None] = mapped_column(Text, nullable=True)  # comma-separated CVE IDs
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    severity: Mapped[str | None] = mapped_column(String, nullable=True)  # CRITICAL, HIGH, MEDIUM, LOW, UNKNOWN
+    cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cvss_vector: Mapped[str | None] = mapped_column(String, nullable=True)
+    published: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    modified: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    refreshed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ignored: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    ignored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ignored_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class InstalledTap(Base):
