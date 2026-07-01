@@ -7,10 +7,11 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, literal
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Command, Host, InstalledTap, Package, Tag, TagPackage
+from ..models import Command, Host, InstalledTap, Package, Tag, TagPackage, Vulnerability
 
 
 class PackageRow(NamedTuple):
@@ -572,6 +573,105 @@ def tag_delete(tag_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
     return HTMLResponse("", headers={"HX-Redirect": "/tags"})
 
 
+# ── Vulnerabilities ──────────────────────────────────────────────────────────
+
+_SEVERITY_ORDER = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "UNKNOWN": 0}
+
+
+@router.get("/vulnerabilities", response_class=HTMLResponse)
+def vulnerabilities_page(
+    request: Request,
+    severity: str = "",
+    sort: str = "cvss_score",
+    dir: str = "desc",
+    show_ignored: bool = False,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    query = db.query(Vulnerability).filter(Vulnerability.ignored.is_(show_ignored))
+    if severity:
+        query = query.filter(Vulnerability.severity == severity)
+    vulns = query.all()
+
+    host_counts_q = (
+        db.query(Package.name, Package.type, func.count(Package.host_id).label("cnt"))
+        .group_by(Package.name, Package.type)
+        .all()
+    )
+    host_counts = {(r.name, r.type): r.cnt for r in host_counts_q}
+
+    vuln_data = [
+        {
+            "vuln": v,
+            "host_count": host_counts.get((v.package_name, v.package_type), 0),
+            "aliases_list": v.aliases.split(",") if v.aliases else [],
+        }
+        for v in vulns
+    ]
+
+    def sort_key(item: dict):
+        v = item["vuln"]
+        if sort == "severity":
+            return _SEVERITY_ORDER.get(v.severity or "", 0)
+        if sort == "package":
+            return v.package_name.lower()
+        if sort == "host_count":
+            return item["host_count"]
+        return v.cvss_score or 0.0
+
+    vuln_data.sort(key=sort_key, reverse=(dir == "desc"))
+
+    active_vulns = db.query(Vulnerability).filter(Vulnerability.ignored.is_(False))
+    severity_counts: dict[str, int] = {}
+    for v in (active_vulns if not show_ignored else vulns):
+        s = v.severity or "UNKNOWN"
+        severity_counts[s] = severity_counts.get(s, 0) + 1
+
+    all_vulns = db.query(Vulnerability).all()
+    last_refreshed = max((v.refreshed_at for v in all_vulns), default=None)
+    ignored_count = sum(1 for v in all_vulns if v.ignored)
+
+    return templates.TemplateResponse(
+        request,
+        "vulnerabilities.html",
+        {
+            "vulns": vuln_data,
+            "severity": severity,
+            "sort": sort,
+            "dir": dir,
+            "show_ignored": show_ignored,
+            "severity_counts": severity_counts,
+            "last_refreshed": last_refreshed,
+            "ignored_count": ignored_count,
+        },
+    )
+
+
+@router.post("/vulnerabilities/{vuln_id}/ignore", response_class=HTMLResponse)
+def vuln_ignore(
+    vuln_id: str,
+    reason: str = Form(default=""),
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    vuln = db.query(Vulnerability).filter(Vulnerability.id == vuln_id).first()
+    if vuln:
+        vuln.ignored = True
+        vuln.ignored_at = datetime.now(timezone.utc)
+        vuln.ignored_reason = reason.strip() or None
+        db.commit()
+    return HTMLResponse("")
+
+
+@router.delete("/vulnerabilities/{vuln_id}/ignore", response_class=HTMLResponse)
+def vuln_unignore(vuln_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
+    vuln = db.query(Vulnerability).filter(Vulnerability.id == vuln_id).first()
+    if vuln:
+        vuln.ignored = False
+        vuln.ignored_at = None
+        vuln.ignored_reason = None
+        db.commit()
+    return HTMLResponse("")
+
+
 # ── Outdated ─────────────────────────────────────────────────────────────────
 
 @router.get("/outdated", response_class=HTMLResponse)
@@ -631,7 +731,6 @@ def _host_data(sort: str, dir: str, db: Session) -> list[dict]:
         for host in hosts
     ]
 
-    from datetime import datetime, timezone
 
     def sort_key(item):
         h = item["host"]

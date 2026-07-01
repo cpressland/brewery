@@ -23,6 +23,13 @@
       --green:    #a6e3a1;
       --red:      #f38ba8;
       --peach:    #fab387;
+      --yellow:   #f9e2af;
+
+      --sev-critical: #f38ba8;
+      --sev-high:     #fab387;
+      --sev-medium:   #f9e2af;
+      --sev-low:      #a6e3a1;
+      --sev-unknown:  #6c7086;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -129,6 +136,12 @@
     .badge-formula { background: rgba(137, 180, 250, 0.15); color: var(--blue); }
     .badge-cask    { background: rgba(203, 166, 247, 0.15); color: var(--mauve); }
     .badge-tap     { background: rgba(250, 179, 135, 0.15); color: var(--peach); }
+
+    .badge-sev-critical { background: rgba(243, 139, 168, 0.15); color: var(--sev-critical); }
+    .badge-sev-high     { background: rgba(250, 179, 135, 0.15); color: var(--sev-high); }
+    .badge-sev-medium   { background: rgba(249, 226, 175, 0.15); color: var(--sev-medium); }
+    .badge-sev-low      { background: rgba(166, 227, 161, 0.15); color: var(--sev-low); }
+    .badge-sev-unknown  { background: rgba(108, 112, 134, 0.15); color: var(--sev-unknown); }
 
     .search-wrap { margin-bottom: 1rem; position: relative; }
     input[type="search"] {
@@ -370,6 +383,7 @@
       <a href="/packages">Packages</a>
       <a href="/outdated">Outdated</a>
       <a href="/tags">Tags</a>
+      <a href="/vulnerabilities">Vulnerabilities</a>
       {% if show_logout %}
       <form method="post" action="/logout" style="display: inline; margin-left: 0.5rem;">
         <button type="submit" class="btn" style="font-size: 0.75rem; padding: 0.25rem 0.625rem;">Logout</button>

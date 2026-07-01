@@ -14,10 +14,12 @@ dependencies = [
     "python-multipart>=0.0.9",
     "pydantic-settings>=2.0.0",
     "itsdangerous>=2.0.0",
+    "cvss>=3.0",
 ]
 
 [project.scripts]
 brewery-server = "server.main:run"
+brewery-osv-refresh = "server.osv_refresh:main"
 
 [tool.alembic]
 script_location = "server:alembic"
